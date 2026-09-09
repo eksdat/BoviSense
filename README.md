@@ -1,4 +1,4 @@
-# BoviSense Environmental Control
+# BoviSense
 
 Sistema embarcado de monitoramento ambiental e controle adaptativo de ventilação para instalações de bovinos leiteiros.
 
