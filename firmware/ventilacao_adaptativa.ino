@@ -1,7 +1,7 @@
 /*
- * Ventilação adaptativa para instalações de bovinos leiteiros — protótipo ESP32
+ * Ventilação adaptativa para instalações de bovinos leiteiros
  *
- * Este sketch tem 3 abas na IDE Arduino:
+ * Arquivos:
  *   ventilacao_adaptativa.ino  -> esta aba (apenas instruções)
  *   ventilacao.cpp             -> TODO o programa (configurações no início)
  *   segredos.h                 -> Wi-Fi, token do Telegram e usuário do CallMeBot
@@ -10,7 +10,7 @@
  * o que evita erros de geração automática de protótipos com a página HTML
  * embutida. Basta abrir esta pasta na IDE e clicar em "Carregar".
  *
- * Placa: "ESP32 Dev Module" (Arduino-ESP32 core 2.0.x ou 3.x)
+ * Placa: "ESP32 Dev Module"
  * Bibliotecas: Adafruit SSD1306, Adafruit GFX Library, DHT sensor library,
  *              Adafruit Unified Sensor, ArduinoJson (v7)
  * Monitor Serial: 115200 baud (saída em CSV para análise)
