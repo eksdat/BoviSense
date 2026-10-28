@@ -1,0 +1,38 @@
+# ---------------------------------------------------------------------------
+#  NUNCA versione credenciais.
+#  O arquivo rastreado é "segredos.exemplo.h" (em branco).
+#  Copie-o para "segredos.h" e preencha SÓ na sua máquina.
+# ---------------------------------------------------------------------------
+segredos.h
+**/segredos.h
+*.senha
+*.token
+.env
+.env.*
+
+# Build do Arduino / PlatformIO
+build/
+.pio/
+.pioenvs/
+*.bin
+*.elf
+*.map
+*.hex
+
+# Dados brutos muito grandes (commite só os CSV dos ensaios oficiais)
+dados/*.csv.gz
+dados/bruto/
+
+# Sistema operacional e editores
+.DS_Store
+Thumbs.db
+desktop.ini
+.vscode/
+.idea/
+*~
+*.swp
+
+# Office
+~$*.docx
+~$*.xlsx
+~$*.pptx

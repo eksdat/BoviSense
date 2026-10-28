@@ -1,28 +1,16 @@
 /*
- * ============================================================================
- *  BoviSense — monitoramento ambiental e ventilação adaptativa para bovinos
- *  ESP32 DevKit 30 pinos | DHT11 | MQ-2 | buzzer | TIP122
+ * Ventilação adaptativa para bovinos leiteiros.
+ * ESP32 DevKit 30 pinos | DHT11 | MQ-2 | buzzer | TIP122. Sem display.
  *
- *  - Painel web BoviSense (rede "BoviSense", http://192.168.4.1), com duas
- *    vistas: OPERAÇÃO (só o que o usuário final precisa ver) e TÉCNICO
- *    (perfil de teste: estratégias, ensaios, métricas, calibração e rede)
- *  - Telegram: mensagem ao ligar, relatório de hora em hora, alertas,
- *    comandos pelo menu "/" e simulação de emergência com ligação de voz
- *  - Calibração: offsets do DHT11 contra referência (gravados na memória),
- *    ADC com média aparada, linha de base do MQ-2 com correção lenta de deriva
+ * Núcleo 1: amostragem, decisão, acionamento e modo seguro.
+ * Núcleo 0: Wi-Fi, painel web, Telegram e ligação de voz, por fila.
  *
- *  Sem display: a interface local é o painel web. O diagnóstico de
- *  inicialização sai pelo Monitor Serial e por códigos de bipe no buzzer.
+ * Arduino-ESP32 2.0.x ou 3.x.
+ * Bibliotecas: DHT sensor library, Adafruit Unified Sensor, ArduinoJson 7.
  *
- *  Compatível com Arduino-ESP32 core 2.0.x e 3.x. Bibliotecas:
- *    DHT sensor library, Adafruit Unified Sensor, ArduinoJson (v7).
- *
- *  VALIDADE CIENTÍFICA: o MQ-2 não mede NH3 e nada aqui é convertido em ppm;
- *  IG = R0/Rs é um índice relativo. ITU: Kelly e Bond (1971) apud Azevedo
- *  et al. (2005). Limiares 72/75/79: Armstrong (1994) apud Azevedo et al.
- *  (2005) e valores críticos de Azevedo et al. (2005). Eventos simulados são
- *  marcados no registro e NÃO entram nas métricas dos ensaios.
- * ============================================================================
+ * Procedência dos parâmetros: ITU de Kelly e Bond (1971) apud Azevedo et al.
+ * (2005); limiares 72/75/79 de Armstrong (1994) apud Azevedo et al. (2005).
+ * O MQ-2 não mede NH3 e nada vira ppm: IG = R0/Rs é índice relativo.
  */
 #include <Arduino.h>
 #if __has_include(<esp_arduino_version.h>)
@@ -47,7 +35,13 @@
 
 // ============================ 0. HARDWARE ==================================
 #define SEM_ATUADOR   0   // 1 = sem TIP122: só recomenda o nível (modo sombra)
-#define MQ2_EM_3V3    1   // 1 = MQ-2 no 3V3, AO direto; 0 = MQ-2 no VIN com divisor 10k/20k
+
+// Tem que corresponder à fiação: trocar um sem o outro falseia o índice de
+// gás, ou leva 5 V ao D34.
+//   1 = VCC no 3V3, AO direto no D34. Montagem atual. O aquecedor fica com
+//       43 % da potência de catálogo, declarado como limitação no artigo.
+//   0 = VCC no VIN (5 V), AO por divisor de dois resistores de 10 kΩ.
+#define MQ2_EM_3V3    1
 
 // ============================ 1. PINOS =====================================
 // Na placa, o número depois do "D" é o número do GPIO (D4 = GPIO4).
@@ -67,8 +61,10 @@
 #define MQ2_R2_OHM 1.0f
 #define MQ2_VC_MV  3300.0f
 #else
+// AO -> 10k -> ponto de medida (D34) -> 10k -> GND. Divide por 2: os 5 V
+// chegam ao pino como 2,5 V. Com 10k/20k seriam 3,33 V, no limite.
 #define MQ2_R1_OHM 10000.0f
-#define MQ2_R2_OHM 20000.0f
+#define MQ2_R2_OHM 10000.0f
 #define MQ2_VC_MV  5000.0f
 #endif
 #define ADC_N           32       // leituras por amostra (média aparada)
@@ -147,10 +143,14 @@ struct Comando { uint8_t tipo; int arg; };
 DHT dht(PIN_DHT, DHT_TIPO);
 WebServer servidor(80);
 Preferences prefs;
-SemaphoreHandle_t mtx;
+SemaphoreHandle_t mtx, mtxCred;
 QueueHandle_t filaSaida, filaCmd;
 
-static String wifiSsid, wifiSenha, tgToken, tgChat, cbUser;   // gravadas na memória e editáveis pelo painel
+// Escritas pelo painel (núcleo 1), lidas pela tarefa de rede (núcleo 0).
+// String realoca ao ser reatribuída, então o núcleo 0 só lê as cópias r0*,
+// renovadas sob mutex no início de cada volta.
+static String wifiSsid, wifiSenha, tgToken, tgChat, cbUser;
+static String r0Ssid, r0Senha, r0Token, r0Chat, r0User;
 static volatile bool pedidoReconectar = false;
 static bool wifiOk = false;
 static volatile uint8_t wifiMotivo = 0;   // último motivo de desconexão informado pelo driver
@@ -165,6 +165,8 @@ static uint8_t falhasDHT = 0;
 static float Traw = NAN, Uraw = NAN, Tf = NAN, Uf = NAN, itu = NAN, ig = NAN, tLongo = NAN, uLongo = NAN;
 static uint32_t mqmV = 0;
 static float R0rel = NAN, cvBase = 0, ituBase = NAN, calOffT = 0, calOffU = 0;
+static char gasMotivo[72] = "aquecendo o sensor";   // por que o indice de gas nao esta disponivel
+static uint8_t baseGasTent = 0;                     // tentativas de linha de base
 static double somaR = 0, somaR2 = 0, somaItuBase = 0; static uint32_t nBaseR = 0, nBaseItu = 0;
 static uint32_t recalGasAte = 0;
 static float ituDemo[3] = {0, 0, 0};
@@ -186,6 +188,7 @@ static uint32_t ultLembrete = 0;
 static int ultimaHoraRelatorio = -1; static uint32_t ultRelatorioMs = 0;
 static uint32_t simAte = 0, ultLigSim = 0; static bool simAnterior = false;
 static uint32_t bipFim = 0, bipProx = 0; static uint8_t bipsPend = 0;
+static uint32_t descartadas = 0;   // alertas perdidos por fila cheia
 
 // ============================ PWM (LEDC) ===================================
 #define CANAL_FAN 0
@@ -262,13 +265,18 @@ static void zerarEstagiador(Estagiador &e) { e.estagio = 0; e.ultimaTroca = mill
 static void zerarMetricas(Metricas &m) { memset(&m, 0, sizeof(m)); m.inicio_ms = millis(); m.itu_max = -1000; m.itu_min = 1000; }
 static void zerarEnsaio() { zerarMetricas(ensaio); for (int i = 0; i < 3; i++) { zerarMetricas(ensS[i]); dutyPrevS[i] = 0; } }
 static void zerarHora() { zerarMetricas(hora); for (int i = 0; i < 3; i++) zerarMetricas(horS[i]); }
-static void acumular(Metricas &m, float dt, uint8_t niv, uint8_t duty, bool partida, bool troca) {
+// Só a estratégia aplicada move o ventilador, e só ela altera o ambiente.
+// Daí as métricas de ITU não serem acumuladas para as outras duas: sairiam
+// iguais às dela e insinuariam uma comparação de conforto que não existe.
+static void acumular(Metricas &m, float dt, uint8_t niv, uint8_t duty,
+                     bool partida, bool troca, bool aplicada) {
   m.t_total_s += dt; m.t_nivel_s[niv] += dt;
   if (duty > 0) m.t_ligado_s += dt;
   m.t_eq_s += dt * duty / 100.0;
   m.energia_wh += P_NIVEL_W[niv] * dt / 3600.0;
   if (partida) m.n_partidas++;
   if (troca) m.n_trocas++;
+  if (!aplicada) return;
   if (!isnan(itu)) {
     m.n_itu++; m.soma_itu += itu;
     if (itu > m.itu_max) m.itu_max = itu;
@@ -289,12 +297,16 @@ static void carregarCalibracao() {
 }
 // A rede escolhida no painel fica gravada; o segredos.h serve só de valor inicial
 static void salvarRede(const String &ssid, const String &senha) {
+  xSemaphoreTake(mtxCred, portMAX_DELAY);
   wifiSsid = ssid; wifiSenha = senha;
+  xSemaphoreGive(mtxCred);
   prefs.begin("bovisense", false); prefs.putString("wifi_s", ssid); prefs.putString("wifi_p", senha); prefs.end();
   pedidoReconectar = true;
 }
 static void salvarTelegram(const String &tok, const String &chat, const String &user) {
+  xSemaphoreTake(mtxCred, portMAX_DELAY);
   tgToken = tok; tgChat = chat; cbUser = user;
+  xSemaphoreGive(mtxCred);
   prefs.begin("bovisense", false); prefs.putString("tg_t", tok); prefs.putString("tg_c", chat); prefs.putString("cb_u", user); prefs.end();
 }
 static void salvarCalibracao() {
@@ -320,13 +332,40 @@ static void zerarCalibracao() {
   calOffT = calOffU = 0; salvarCalibracao();
 }
 static void iniciarRecalGas() { recalGasAte = millis() + T_BASE_S * 1000UL; somaR = somaR2 = 0; nBaseR = 0; zerarEstagiador(stGas); }
-static void definirLimiaresGas() {
-  if (nBaseR < 5) return;
+// Sem R0 o índice de gás fica indisponível pelo resto da sessão, então a
+// falha é relatada em vez de silenciosa.
+static bool definirLimiaresGas() {
+  if (nBaseR < 5) {
+    snprintf(gasMotivo, sizeof(gasMotivo),
+             "linha de base falhou: so %lu leituras validas de %lu",
+             (unsigned long)nBaseR, (unsigned long)(T_BASE_S * 1000UL / T_AMOSTRA_MS));
+    return false;
+  }
   R0rel = somaR / nBaseR;
   double var = somaR2 / nBaseR - (double)R0rel * R0rel;
   cvBase = var > 0 ? sqrt(var) / R0rel : 0;
   IG_LIMIAR[0] = max(1.5f, 1.0f + 6.0f * cvBase);
   IG_LIMIAR[1] = max(2.5f, IG_LIMIAR[0] + 0.5f);
+  gasMotivo[0] = 0; baseGasTent = 0;
+  return true;
+}
+static void enfileirar(uint8_t tipo, const char *txt);   // definida adiante
+// Repete a linha de base até três vezes antes de desistir do canal de gás.
+static void concluirBaseGas(const char *origem) {
+  if (definirLimiaresGas()) {
+    Serial.printf("# MQ-2 (%s): R0/RL=%.3f cv=%.3f G1=%.2f G2=%.2f\n",
+                  origem, R0rel, cvBase, IG_LIMIAR[0], IG_LIMIAR[1]);
+    return;
+  }
+  if (++baseGasTent < 3) {
+    Serial.printf("# MQ-2 (%s): %s. Tentando de novo por %lu s.\n",
+                  origem, gasMotivo, (unsigned long)T_BASE_S);
+    iniciarRecalGas();
+  } else {
+    snprintf(gasMotivo, sizeof(gasMotivo), "sem leitura valida: confira VCC e AO do MQ-2");
+    Serial.printf("# MQ-2: INDICE DE GAS DESATIVADO (%s). O controle segue so pelo ITU.\n", gasMotivo);
+    enfileirar(SAI_MSG, "Atencao: o sensor de gas nao respondeu. O controle segue so por temperatura e umidade.");
+  }
 }
 
 // ============================ SAÍDAS DE REDE ===============================
@@ -336,13 +375,54 @@ static bool chatIdValido() {
   return true;
 }
 static bool tgTokenOk() { return tgToken.length() > 20; }
+// --- lado do núcleo 0: só estas funções e cópias podem ser usadas lá ---
+static bool r0TokenOk()   { return r0Token.length() > 20; }
+static bool r0LigacaoOk() { return r0User.length() > 1; }
+static void sincronizarCredenciais() {
+  if (xSemaphoreTake(mtxCred, pdMS_TO_TICKS(20)) != pdTRUE) return;
+  r0Ssid = wifiSsid; r0Senha = wifiSenha;
+  r0Token = tgToken; r0Chat = tgChat; r0User = cbUser;
+  xSemaphoreGive(mtxCred);
+}
 static bool tgAtivo() { return tgTokenOk() && chatIdValido(); }
+// Código HTTP do último envio. Escrito no núcleo 0, lido no núcleo 1: int
+// alinhado de 32 bits, escrita atômica, dispensa mutex. 0 = nada enviado ainda.
+static volatile int tgUltimoCod = 0;
+// Credencial nova gravada pelo painel: a tarefa de rede refaz a apresentação
+// para que o resultado apareça em segundos, não na hora cheia.
+static volatile bool tgReapresentar = false;
+// Conferir o formato do token e do chat_id não diz nada sobre a API aceitá-los,
+// então o painel exige resposta 200.
+static bool tgOk() { return tgAtivo() && tgUltimoCod == 200; }
+// Buffer estático: só webApi() chama isto, sempre no núcleo 1.
+static const char *tgMotivo() {
+  static char m[80];
+  if (!tgTokenOk())    return "token do bot não preenchido";
+  if (!chatIdValido()) return "chat_id vazio ou com caracteres que não são dígitos";
+  switch (tgUltimoCod) {
+    case 0:   return "aguardando o primeiro envio";
+    case 200: return "";
+    case 400: return "erro 400 (chat_id errado, ou falta abrir a conversa com /start no bot)";
+    case 401:
+    case 404: return "erro 401/404 (token inválido ou revogado no BotFather)";
+    default:
+      if (tgUltimoCod < 0) return "sem resposta (sem internet, ou falha de DNS ou TLS)";
+      snprintf(m, sizeof(m), "o Telegram recusou o envio (HTTP %d)", tgUltimoCod);
+      return m;
+  }
+}
 static bool ligacaoAtiva() { return cbUser.length() > 1; }
 static void enfileirar(uint8_t tipo, const char *txt) {
   if (tipo == SAI_MSG && !tgAtivo()) return;
   if (tipo == SAI_LIGACAO && !ligacaoAtiva()) return;
   MsgSaida m; m.tipo = tipo; strlcpy(m.texto, txt, sizeof(m.texto));
-  xQueueSend(filaSaida, &m, 0);
+  // Uma ligação bloqueia a tarefa de rede por dezenas de segundos; sem espera,
+  // os alertas gerados nesse intervalo sumiriam sem rastro.
+  if (xQueueSend(filaSaida, &m, pdMS_TO_TICKS(250)) != pdTRUE) {
+    descartadas++;
+    Serial.printf("# REDE: fila cheia, alerta DESCARTADO (%lu no total): %.60s\n",
+                  (unsigned long)descartadas, m.texto);
+  }
 }
 static void alertar(uint8_t canal, const char *msg, bool ligar) {
   uint32_t s = millis() / 1000UL;
@@ -364,12 +444,14 @@ static void textoMetricas(char *out, size_t n, const Metricas &m, const char *ti
 static void textoEstrategias(char *out, size_t n, const Metricas *m) {
   double tot = m[0].t_total_s > 0 ? m[0].t_total_s : 1;
   snprintf(out, n,
-           "Comparacao das estrategias (mesmos dados):\nE1 continua: %.1f min eq. (%.0f %%)\n"
+           "Decisao das tres estrategias sobre as MESMAS leituras:\nE1 continua: %.1f min eq. (%.0f %%)\n"
            "E2 liga-desliga: %.1f min eq. (%.0f %%), trocas %lu\nE3 adaptativa: %.1f min eq. (%.0f %%), trocas %lu\n"
-           "Reducao estimada E3 x E1: %.0f %%",
+           "Diferenca de acionamento E3 x E1: %.0f %%\n"
+           "So E%d acionou o ventilador: isto compara a decisao, nao o conforto nem a energia medida.",
            m[0].t_eq_s / 60.0, 100.0 * m[0].t_eq_s / tot, m[1].t_eq_s / 60.0, 100.0 * m[1].t_eq_s / tot,
            (unsigned long)m[1].n_trocas, m[2].t_eq_s / 60.0, 100.0 * m[2].t_eq_s / tot, (unsigned long)m[2].n_trocas,
-           m[0].t_eq_s > 0 ? 100.0 * (m[0].t_eq_s - m[2].t_eq_s) / m[0].t_eq_s : 0.0);
+           m[0].t_eq_s > 0 ? 100.0 * (m[0].t_eq_s - m[2].t_eq_s) / m[0].t_eq_s : 0.0,
+           modo == MODO_CONTINUO ? 1 : (modo == MODO_LIGA_DESLIGA ? 2 : 3));
 }
 
 // ============================ SIMULAÇÃO DE EMERGÊNCIA ======================
@@ -443,8 +525,13 @@ static void amostrar() {
   float rsRel = nR ? media(bufR, nR) : NAN;
   bool recal = recalGasAte && (int32_t)(recalGasAte - agora) > 0;
   if (recal) { flags |= F_RECAL_GAS; if (mqOk) { somaR += rInst; somaR2 += (double)rInst * rInst; nBaseR++; } }
-  else if (recalGasAte) { recalGasAte = 0; definirLimiaresGas(); Serial.printf("# MQ-2 recalibrado: cv=%.3f G1=%.2f G2=%.2f\n", cvBase, IG_LIMIAR[0], IG_LIMIAR[1]); }
+  else if (recalGasAte) { recalGasAte = 0; concluirBaseGas("recalibracao"); }
   ig = (!recal && !isnan(R0rel) && mqOk && rsRel > 0) ? R0rel / rsRel : NAN;
+  if (isnan(ig) && baseGasTent < 3) {
+    if (recal) snprintf(gasMotivo, sizeof(gasMotivo), "medindo o ar de referencia");
+    else if (estado != EST_OPER) snprintf(gasMotivo, sizeof(gasMotivo), "aquecendo o sensor");
+    else if (!mqOk) snprintf(gasMotivo, sizeof(gasMotivo), "leitura fora de faixa: %lu mV no D34", (unsigned long)mqmV);
+  }
 
   uint8_t estItu = stItu.estagio, estGas = stGas.estagio;
   bool sim = simulando();
@@ -458,13 +545,13 @@ static void amostrar() {
       if (mqOk) { somaR += rInst; somaR2 += (double)rInst * rInst; nBaseR++; }
       if (!isnan(itu)) { somaItuBase += itu; nBaseItu++; }
       if (agora - tInicioEstado >= T_BASE_S * 1000UL) {
-        definirLimiaresGas();
+        concluirBaseGas("linha de base");
         ituBase = nBaseItu ? somaItuBase / nBaseItu : NAN;
         for (int k = 0; k < 3; k++) ituDemo[k] = isnan(ituBase) ? ITU_LIMIAR[k] : ituBase + 1.0f + k;
         stItu.limiar = limiaresAtivos();
         zerarEstagiador(stItu); zerarEstagiador(stGas); zerarEnsaio(); zerarHora();
         iniciarEstado(EST_OPER);
-        Serial.printf("# BASE: R0/RL=%.3f cv=%.3f G1=%.2f G2=%.2f ITU_base=%.1f\n", R0rel, cvBase, IG_LIMIAR[0], IG_LIMIAR[1], ituBase);
+        Serial.printf("# BASE: ITU_base=%.1f\n", ituBase);
         char msg[220];
         snprintf(msg, sizeof(msg), "BoviSense pronto. Controle %s ativo. ITU agora %.1f (%s).", NOME_MODO[modo], itu,
                  categoria(itu) < 4 ? NOME_CAT[categoria(itu)] : "sem leitura");
@@ -487,8 +574,8 @@ static void amostrar() {
     if (!sim && dt > 0 && dt < 30) {   // eventos simulados não entram nas métricas
       for (int i = 0; i < 3; i++) {
         uint8_t dS = DUTY_NIVEL[nivS[i]];
-        acumular(ensS[i], dt, nivS[i], dS, dS > 0 && dutyPrevS[i] == 0, dS != dutyPrevS[i]);
-        acumular(horS[i], dt, nivS[i], dS, dS > 0 && dutyPrevS[i] == 0, dS != dutyPrevS[i]);
+        acumular(ensS[i], dt, nivS[i], dS, dS > 0 && dutyPrevS[i] == 0, dS != dutyPrevS[i], false);
+        acumular(horS[i], dt, nivS[i], dS, dS > 0 && dutyPrevS[i] == 0, dS != dutyPrevS[i], false);
         dutyPrevS[i] = dS;
       }
     }
@@ -508,8 +595,8 @@ static void amostrar() {
   bool alarmeGasAgora = (estado == EST_OPER && modo >= MODO_ADAPTATIVO && estGas >= 2);
   if (alarmeGasAgora) flags |= F_ALARME_GAS;
   if (estado == EST_OPER && !sim && dt > 0 && dt < 30) {
-    acumular(ensaio, dt, nivel, novoDuty, partida, troca);
-    acumular(hora, dt, nivel, novoDuty, partida, troca);
+    acumular(ensaio, dt, nivel, novoDuty, partida, troca, true);
+    acumular(hora, dt, nivel, novoDuty, partida, troca, true);
   }
 
   // ---- alertas reais ----
@@ -579,7 +666,15 @@ static void amostrar() {
   digitalWrite(PIN_LED, !digitalRead(PIN_LED));
 }
 
-static void servicoVentilador() { uint32_t a = millis(); fanEscrever((dutyAlvo > 0 && (int32_t)(partidaAte - a) > 0) ? 100 : dutyAlvo); }
+// dutyTeste >= 0 ignora o controle e aplica a razão cíclica pedida pelo
+// monitor serial. Serve ao Ensaio 0(b): achar a menor que mantém o cooler
+// girando. Volta ao controle normal com d-1 ou ao trocar de modo.
+static int8_t dutyTeste = -1;
+static void servicoVentilador() {
+  if (dutyTeste >= 0) { fanEscrever((uint8_t)dutyTeste); return; }
+  uint32_t a = millis();
+  fanEscrever((dutyAlvo > 0 && (int32_t)(partidaAte - a) > 0) ? 100 : dutyAlvo);
+}
 static void novoEnsaio() {
   static char txt[900];
   textoMetricas(txt, sizeof(txt), ensaio, "Resumo do ensaio encerrado");
@@ -595,9 +690,9 @@ static void definirModo(int m) {
   novoEnsaio(); bipsAgendar(m + 1);
 }
 
-// ============================ PAINEL WEB BoviSense ==========================
-// Duas vistas na mesma página: OPERAÇÃO (padrão, só leitura) e TÉCNICO
-// (perfil de teste: estratégias, ensaios, métricas, calibração e rede).
+// ============================ PAINEL WEB ====================================
+// Duas vistas na mesma página: operação (padrão, só leitura) e técnico
+// (estratégias, ensaios, métricas, calibração e rede).
 static const char PAGINA[] PROGMEM = R"HTML(<!doctype html><html lang="pt-br"><head><meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1"><title>BoviSense</title><style>
 :root{--pg:#f7f6f2;--bg:#fff;--tx:#191d1b;--mut:#6c7470;--ln:#e3e6e1;--ac:#2f6f4a;--al:#b3261e;
@@ -668,6 +763,7 @@ tr:last-child td{border-bottom:0}
 <dl><dt>Temperatura</dt><dd><span id="t">--</span><u>°C</u></dd>
 <dt>Umidade relativa</dt><dd><span id="u">--</span><u>%</u></dd>
 <dt>Gases, índice relativo</dt><dd><span id="g">--</span></dd></dl>
+<p class="hint" id="gm"></p>
 <p class="hint">O índice de gases compara o ar com o de referência medido na partida: 1,00 é igual à referência. Não é concentração em ppm.</p>
 </section>
 
@@ -696,6 +792,7 @@ tr:last-child td{border-bottom:0}
 <button class="al" onclick="acao('/simular')">Simular emergência</button><button onclick="acao('/parar')">Parar simulação</button>
 <p class="hint">A simulação dura 60 s, dispara Telegram e ligação, e suas amostras ficam marcadas e fora das métricas.</p>
 <table id="tab"></table>
+<p class="hint">As três últimas linhas aplicam as três estratégias às mesmas leituras, mas só a estratégia ativa aciona o ventilador e altera o ambiente. Elas comparam a <b>decisão</b>, não o conforto nem a energia medida: para isso são os ensaios reais, um por estratégia.</p>
 </section>
 
 <section>
@@ -710,7 +807,8 @@ tr:last-child td{border-bottom:0}
 
 <section>
 <p class="k">Rede e Telegram</p>
-<p id="wst" style="margin:0 0 10px;font-weight:600">—</p>
+<p id="wst" style="margin:0 0 4px;font-weight:600">—</p>
+<p id="tgst" class="hint" style="margin:0 0 10px"></p>
 <button onclick="redes()">Procurar redes</button><br>
 <label>Rede<select id="ssid"></select></label>
 <label>Senha<input id="pw2" type="password"></label><br>
@@ -751,11 +849,13 @@ return'<button class="'+(i==modo?'on':'')+'" onclick="acao(\'/modo?m='+i+'\')">'
 function atual(){fetch('/api').then(function(r){return r.json()}).then(function(d){
 $('itu').textContent=f(d.ITU);$('t').textContent=f(d.T);$('u').textContent=f(d.UR,0);$('g').textContent=f(d.IG,2);
 $('cat').textContent=d.cat;$('est').textContent=d.estado;
+$('gm').textContent=d.gmot?'Índice de gás indisponível — '+d.gmot+'.':'';
 $('stw').style.borderLeftColor=d.catn<4?CV[d.catn]:'var(--mut)';
 $('vl').textContent=d.rec?'Ventilação recomendada':'Ventilação';
 for(var i=0;i<4;i++)$('n'+i).className=(i==d.nivel?'on':'');
 $('ph').textContent=d.hora;$('pw').textContent=d.wifi?'rede ✓':'rede ✗';
 $('pt').textContent=d.tg?'Telegram ✓':'Telegram ✗';$('wst').textContent=d.wst;
+$('tgst').textContent=d.tg?'Telegram entregando normalmente.':'Telegram sem entregar: '+(d.tgmot||'não configurado')+'.';
 if(d.modo!=modo){modo=d.modo;botoes()}
 var a=$('aviso');a.style.display=d.alerta?'block':'none';a.textContent=d.alerta;
 var e=d.ens;$('tab').innerHTML=[['Duração',f(e.min,0)+' min'],
@@ -788,7 +888,7 @@ setInterval(atual,2500);setInterval(graf,10000);atual();graf();
 
 static const char *NOME_CAT_WEB[4] = {"Conforto térmico", "Estresse brando", "Atenção: próximo do crítico", "Estresse moderado"};
 static void webApi() {
-  static char b[1600]; char estTxt[80], hr[8] = "--:--", alerta[120] = "";
+  static char b[1700]; char estTxt[80], hr[8] = "--:--", alerta[120] = "";
   uint32_t dec = (millis() - tInicioEstado) / 1000UL;
   if (estado == EST_AQUEC) snprintf(estTxt, sizeof(estTxt), "Aquecendo o MQ-2: faltam %lu s", (unsigned long)(T_AQUEC_S > dec ? T_AQUEC_S - dec : 0));
   else if (estado == EST_BASE) snprintf(estTxt, sizeof(estTxt), "Medindo o ar de referência: faltam %lu s", (unsigned long)(T_BASE_S > dec ? T_BASE_S - dec : 0));
@@ -808,12 +908,13 @@ static void webApi() {
            "{\"estado\":\"%s\",\"modo\":%u,\"T\":%.1f,\"UR\":%.0f,\"ITU\":%.1f,\"IG\":%.2f,\"mv\":%lu,\"nivel\":%u,\"duty\":%u,"
            "\"rec\":%s,\"cat\":\"%s\",\"catn\":%u,\"alerta\":\"%s\",\"wifi\":%s,\"tg\":%s,\"hora\":\"%s\","
            "\"ens\":{\"min\":%.1f,\"acima\":%.1f,\"carga\":%.1f,\"eq\":%.1f,\"E\":%.3f,\"part\":%lu,\"troc\":%lu},"
-           "\"s\":[%.1f,%.1f,%.1f],\"cal\":{\"t\":%.1f,\"u\":%.1f,\"g1\":%.2f,\"g2\":%.2f},\"wst\":\"%s\"}",
+           "\"s\":[%.1f,%.1f,%.1f],\"cal\":{\"t\":%.1f,\"u\":%.1f,\"g1\":%.2f,\"g2\":%.2f},\"wst\":\"%s\",\"gmot\":\"%s\","
+           "\"tgmot\":\"%s\"}",
            estTxt, modo, Tf, Uf, itu, ig, (unsigned long)mqmV, nivel, dutyAlvo, SEM_ATUADOR ? "true" : "false",
-           c < 4 ? NOME_CAT_WEB[c] : "Sem leitura", c < 4 ? c : 9, alerta, wifiOk ? "true" : "false", tgAtivo() ? "true" : "false", hr,
+           c < 4 ? NOME_CAT_WEB[c] : "Sem leitura", c < 4 ? c : 9, alerta, wifiOk ? "true" : "false", tgOk() ? "true" : "false", hr,
            ensaio.t_total_s / 60.0, ensaio.t_itu_acima_s / 60.0, ensaio.carga_itu_min, ensaio.t_eq_s / 60.0, ensaio.energia_wh,
            (unsigned long)ensaio.n_partidas, (unsigned long)ensaio.n_trocas,
-           ensS[0].t_eq_s / 60.0, ensS[1].t_eq_s / 60.0, ensS[2].t_eq_s / 60.0, calOffT, calOffU, IG_LIMIAR[0], IG_LIMIAR[1], rede);
+           ensS[0].t_eq_s / 60.0, ensS[1].t_eq_s / 60.0, ensS[2].t_eq_s / 60.0, calOffT, calOffU, IG_LIMIAR[0], IG_LIMIAR[1], rede, isnan(ig) ? gasMotivo : "", tgMotivo());
   String s(b); s.replace("nan", "null");
   servidor.send(200, "application/json; charset=utf-8", s);
 }
@@ -896,11 +997,17 @@ static void diagnosticarWiFi() {
   }
 }
 
-// ---- configuração de rede e Telegram pelo painel (só pela rede local BoviSense)
+// ---- controle de acesso -----------------------------------------------------
+// Leitura (/, /api, /hist, /csv) é livre. Tudo que muda estado exige cliente
+// em 192.168.4.x, a rede do próprio aparelho: na rede da fazenda qualquer um
+// dispararia uma ligação de emergência ou trocaria a estratégia num ensaio.
 static bool clienteLocal() { IPAddress ip = servidor.client().remoteIP(); return ip[0] == 192 && ip[1] == 168 && ip[2] == 4; }
 static bool recusaRemoto() {
   if (clienteLocal()) return false;
-  servidor.send(403, "text/plain; charset=utf-8", "Só pelo celular conectado à rede BoviSense.");
+  Serial.printf("# ACESSO RECUSADO: %s pediu %s\n",
+                servidor.client().remoteIP().toString().c_str(), servidor.uri().c_str());
+  servidor.send(403, "text/plain; charset=utf-8",
+                "Recusado: conecte o celular à rede do aparelho para alterar qualquer coisa.");
   return true;
 }
 static void webRedes() {
@@ -939,6 +1046,8 @@ static void webTg() {
       servidor.send(200, "text/plain; charset=utf-8", "O chat_id é só números (não é o telefone). Deixe vazio, envie /start ao bot e ele responde com o número."); return;
     }
   salvarTelegram(tok, chat, user);
+  tgUltimoCod = 0;         // não manter no painel o erro da credencial antiga
+  tgReapresentar = true;
   servidor.send(200, "text/plain; charset=utf-8", "Telegram salvo na memória do ESP32.");
 }
 
@@ -953,10 +1062,11 @@ static String urlCodificar(const char *s) {
 static int tgPost(const char *metodo, const String &corpo, String *resp = nullptr) {
   WiFiClientSecure cli; cli.setInsecure();   // limitação discutida no artigo
   HTTPClient http; http.setTimeout(10000);
-  String url = String("https://api.telegram.org/bot") + tgToken + "/" + metodo;
+  String url = String("https://api.telegram.org/bot") + r0Token + "/" + metodo;
   if (!http.begin(cli, url)) return -1;
   http.addHeader("Content-Type", "application/json");
   int cod = http.POST(corpo);
+  tgUltimoCod = cod;                         // alimenta o indicador do painel
   if (resp && cod > 0) *resp = http.getString();
   if (cod != 200) {
     String r = cod > 0 ? (resp ? *resp : http.getString()) : String("sem resposta (DNS/TLS/internet)");
@@ -972,7 +1082,7 @@ static bool tgEnviarPara(const char *chat, const char *texto) {
   String corpo; serializeJson(doc, corpo);
   return tgPost("sendMessage", corpo) == 200;
 }
-static bool tgEnviar(const char *texto) { return tgEnviarPara(tgChat.c_str(), texto); }
+static bool tgEnviar(const char *texto) { return tgEnviarPara(r0Chat.c_str(), texto); }
 static void tgMenu() {
   tgPost("setMyCommands", F("{\"commands\":["
     "{\"command\":\"status\",\"description\":\"Leituras atuais\"},"
@@ -988,7 +1098,7 @@ static void tgMenu() {
 static bool fazerLigacao(const char *texto) {
   WiFiClientSecure cli; cli.setInsecure();
   HTTPClient http; http.setTimeout(25000);
-  String url = String("https://api.callmebot.com/start.php?user=") + urlCodificar(cbUser.c_str()) +
+  String url = String("https://api.callmebot.com/start.php?user=") + urlCodificar(r0User.c_str()) +
                "&text=" + urlCodificar(texto) + "&lang=" + CALLMEBOT_LANG + "&rpt=2";
   if (!http.begin(cli, url)) return false;
   int cod = http.GET();
@@ -1020,7 +1130,7 @@ static void tgResponder(const char *cmd) {
   } else if (!strncmp(cmd, "/parar", 6)) { enviarCmd(CMD_PARAR_SIM, 0);
   } else if (!strncmp(cmd, "/calibrar_gas", 13)) { enviarCmd(CMD_RECAL_GAS, 0); tgEnviar("Recalibrando o MQ-2 por 60 s. Mantenha o ar limpo.");
   } else if (!strncmp(cmd, "/ligar", 6)) {
-    if (ligacaoAtiva()) { tgEnviar("Fazendo ligacao de teste..."); fazerLigacao("Teste da ligacao de alerta do BoviSense."); }
+    if (r0LigacaoOk()) { tgEnviar("Fazendo ligacao de teste..."); fazerLigacao("Teste da ligacao de alerta do BoviSense."); }
     else tgEnviar("Ligacao desativada: preencha o usuario do CallMeBot no painel ou no segredos.h.");
   } else {
     tgEnviar("BoviSense - comandos:\n/status - leituras atuais\n/relatorio - metricas\n/simular - emergencia de teste (60 s, com ligacao)\n"
@@ -1032,7 +1142,7 @@ static void tgConsultar(int64_t &offset) {
   WiFiClientSecure cli; cli.setInsecure();
   HTTPClient http; http.setTimeout(10000);
   char url[220];
-  snprintf(url, sizeof(url), "https://api.telegram.org/bot%s/getUpdates?timeout=0&limit=5&offset=%lld", tgToken.c_str(), (long long)offset);
+  snprintf(url, sizeof(url), "https://api.telegram.org/bot%s/getUpdates?timeout=0&limit=5&offset=%lld", r0Token.c_str(), (long long)offset);
   if (!http.begin(cli, url)) return;
   int cod = http.GET();
   if (cod != 200) { if (cod == 401 || cod == 404) Serial.println(F("# TELEGRAM: token invalido")); http.end(); return; }
@@ -1045,7 +1155,7 @@ static void tgConsultar(int64_t &offset) {
     const char *texto = u["message"]["text"] | "";
     if (!chat) continue;
     char chatStr[24]; snprintf(chatStr, sizeof(chatStr), "%lld", (long long)chat);
-    if (tgChat != chatStr) {   // ajuda na configuração: informa o chat_id a quem escreveu
+    if (r0Chat != chatStr) {   // ajuda na configuração: informa o chat_id a quem escreveu
       char m[240]; snprintf(m, sizeof(m), "Este chat ainda nao esta autorizado no BoviSense.\nSeu chat_id e: %s\nCole esse numero no painel do BoviSense (cartao Rede e Telegram) ou em TG_CHAT_ID no segredos.h.", chatStr);
       tgEnviarPara(chatStr, m);
       Serial.printf("# TELEGRAM: mensagem do chat %s (nao autorizado). Use esse numero em TG_CHAT_ID.\n", chatStr);
@@ -1055,17 +1165,19 @@ static void tgConsultar(int64_t &offset) {
   }
 }
 static void tarefaRede(void *) {
+  sincronizarCredenciais();
   bool ntp = false, antes = false, saudou = false, menu = false; uint32_t ultPoll = 0, ultTent = 0; int64_t offset = 0;
-  if (wifiSsid.length()) { WiFi.begin(wifiSsid.c_str(), wifiSenha.c_str()); ultTent = millis(); }
+  if (r0Ssid.length()) { WiFi.begin(r0Ssid.c_str(), r0Senha.c_str()); ultTent = millis(); }
   else Serial.println(F("# Wi-Fi: sem rede escolhida -> so painel local. Escolha a rede no painel."));
   for (;;) {
-    bool con = wifiSsid.length() && WiFi.status() == WL_CONNECTED;
+    bool con = r0Ssid.length() && WiFi.status() == WL_CONNECTED;
     wifiOk = con;
     if (con && !antes) {
       snprintf(wifiDiag, sizeof(wifiDiag), "conectado");
-      Serial.printf("# Wi-Fi: CONECTADO a '%s' | IP %s | sinal %d dBm\n", wifiSsid.c_str(), WiFi.localIP().toString().c_str(), WiFi.RSSI());
+      Serial.printf("# Wi-Fi: CONECTADO a '%s' | IP %s | sinal %d dBm\n", r0Ssid.c_str(), WiFi.localIP().toString().c_str(), WiFi.RSSI());
       if (!ntp) { configTzTime("<-03>3", "a.st1.ntp.br", "pool.ntp.org"); ntp = true; }
-      if (tgTokenOk() && !menu) { tgMenu(); menu = true; }
+      if (tgReapresentar) { tgReapresentar = false; saudou = false; menu = false; }
+      if (r0TokenOk() && !menu) { tgMenu(); menu = true; }
       if (tgAtivo() && !saudou) {
         char m[260];
         snprintf(m, sizeof(m), "BoviSense ligado e conectado a internet (IP %s).\nAquecendo o MQ-2: o controle comeca em cerca de 4 min.\n"
@@ -1076,23 +1188,24 @@ static void tarefaRede(void *) {
     }
     if (!con && antes) Serial.println(F("# Wi-Fi: conexao perdida"));
     antes = con;
-    if (wifiSsid.length() && !con && millis() - ultTent > 30000) {
-      Serial.printf("# Wi-Fi: sem conexao com '%s' | motivo %u: %s\n", wifiSsid.c_str(), wifiMotivo, textoMotivo(wifiMotivo));
+    if (r0Ssid.length() && !con && millis() - ultTent > 30000) {
+      Serial.printf("# Wi-Fi: sem conexao com '%s' | motivo %u: %s\n", r0Ssid.c_str(), wifiMotivo, textoMotivo(wifiMotivo));
       snprintf(wifiDiag, sizeof(wifiDiag), "falha %u", wifiMotivo);
-      WiFi.disconnect(false, false); delay(100); WiFi.begin(wifiSsid.c_str(), wifiSenha.c_str()); ultTent = millis();
+      WiFi.disconnect(false, false); delay(100); WiFi.begin(r0Ssid.c_str(), r0Senha.c_str()); ultTent = millis();
     }
     if (pedidoReconectar) {
       pedidoReconectar = false; saudou = false; menu = false; wifiMotivo = 0;
       WiFi.disconnect(false, false); vTaskDelay(pdMS_TO_TICKS(300));
       snprintf(wifiDiag, sizeof(wifiDiag), "conectando...");
-      if (wifiSsid.length()) { WiFi.begin(wifiSsid.c_str(), wifiSenha.c_str()); ultTent = millis(); Serial.printf("# Wi-Fi: conectando a '%s' (escolhida no painel)\n", wifiSsid.c_str()); }
+      if (r0Ssid.length()) { WiFi.begin(r0Ssid.c_str(), r0Senha.c_str()); ultTent = millis(); Serial.printf("# Wi-Fi: conectando a '%s' (escolhida no painel)\n", r0Ssid.c_str()); }
     }
+    sincronizarCredenciais();
     MsgSaida m;
     if (con && xQueueReceive(filaSaida, &m, 0) == pdTRUE) {
       bool ok = (m.tipo == SAI_MSG) ? tgEnviar(m.texto) : fazerLigacao(m.texto);
       Serial.printf("# REDE: %s %s\n", m.tipo == SAI_MSG ? "mensagem" : "ligacao", ok ? "enviada" : "FALHOU");
     }
-    if (con && tgTokenOk() && millis() - ultPoll > TG_POLL_MS) { ultPoll = millis(); tgConsultar(offset); }
+    if (con && r0TokenOk() && millis() - ultPoll > TG_POLL_MS) { ultPoll = millis(); tgConsultar(offset); }
     vTaskDelay(pdMS_TO_TICKS(50));
   }
 }
@@ -1116,13 +1229,19 @@ static void servicoBotao() {
 static void servicoSerial() {
   if (!Serial.available()) return;
   char c = Serial.read();
-  if (c == 'm') { delay(20); definirModo(Serial.read() - '0'); }
+  if (c == 'm') { delay(20); definirModo(Serial.read() - '0'); dutyTeste = -1; }
+  else if (c == 'd') {
+    int v = Serial.parseInt();
+    dutyTeste = (v >= 0 && v <= 100) ? (int8_t)v : -1;
+    if (dutyTeste >= 0) Serial.printf("# TESTE: ventilador forcado em %d %% (d-1 volta ao controle)\n", dutyTeste);
+    else Serial.println(F("# TESTE: encerrado, o controle voltou a decidir"));
+  }
   else if (c == 'r') novoEnsaio();
   else if (c == 'p') { static char t[900]; textoMetricas(t, sizeof(t), ensaio, "Ensaio atual"); Serial.println(t); textoEstrategias(t, sizeof(t), ensS); Serial.println(t); }
   else if (c == 'k' && estado == EST_AQUEC) tInicioEstado = millis() - T_AQUEC_S * 1000UL;
   else if (c == 's') iniciarSimulacao("monitor serial");
   else if (c == 'x') pararSimulacao();
-  else if (c == 'h') Serial.println(F("# comandos: m0..m3 modo | r novo ensaio | p metricas | k pular aquecimento | s simular | x parar"));
+  else if (c == 'h') Serial.println(F("# comandos: m0..m3 modo | d0..d100 forca o ventilador (d-1 solta) | r novo ensaio | p metricas | k pular aquecimento | s simular | x parar"));
 }
 
 // ============================ SETUP / LOOP =================================
@@ -1156,7 +1275,8 @@ void setup() {
   if (dhtOk && mqOk) { buzzerTom(1800); delay(90); buzzerTom(0); delay(70); buzzerTom(2600); delay(140); buzzerTom(0); }
 
   mtx = xSemaphoreCreateMutex();
-  filaSaida = xQueueCreate(6, sizeof(MsgSaida));
+  mtxCred = xSemaphoreCreateMutex();
+  filaSaida = xQueueCreate(12, sizeof(MsgSaida));
   filaCmd = xQueueCreate(6, sizeof(Comando));
   zerarEnsaio(); zerarHora();
 
@@ -1174,17 +1294,18 @@ void setup() {
   servidor.on("/api", webApi);
   servidor.on("/hist", webHist);
   servidor.on("/csv", webCsv);
-  servidor.on("/modo", []() { definirModo(servidor.arg("m").toInt()); servidor.send(200, "text/plain; charset=utf-8", "Estratégia alterada; novo ensaio iniciado."); });
-  servidor.on("/novo", []() { novoEnsaio(); servidor.send(200, "text/plain; charset=utf-8", "Novo ensaio iniciado."); });
-  servidor.on("/simular", []() { iniciarSimulacao("painel web"); servidor.send(200, "text/plain; charset=utf-8", "Simulação iniciada: Telegram e ligação disparados."); });
-  servidor.on("/parar", []() { pararSimulacao(); servidor.send(200, "text/plain; charset=utf-8", "Simulação encerrada."); });
-  servidor.on("/cal/th", []() { char m[160]; calibrarTU(servidor.arg("t").toFloat(), servidor.arg("u").toFloat(), m, sizeof(m)); servidor.send(200, "text/plain; charset=utf-8", m); });
-  servidor.on("/cal/zerar", []() { zerarCalibracao(); servidor.send(200, "text/plain; charset=utf-8", "Calibração do DHT11 zerada."); });
+  servidor.on("/modo", []() { if (recusaRemoto()) return; definirModo(servidor.arg("m").toInt()); servidor.send(200, "text/plain; charset=utf-8", "Estratégia alterada; novo ensaio iniciado."); });
+  servidor.on("/novo", []() { if (recusaRemoto()) return; novoEnsaio(); servidor.send(200, "text/plain; charset=utf-8", "Novo ensaio iniciado."); });
+  servidor.on("/simular", []() { if (recusaRemoto()) return; iniciarSimulacao("painel web"); servidor.send(200, "text/plain; charset=utf-8", "Simulação iniciada: Telegram e ligação disparados."); });
+  servidor.on("/parar", []() { if (recusaRemoto()) return; pararSimulacao(); servidor.send(200, "text/plain; charset=utf-8", "Simulação encerrada."); });
+  servidor.on("/cal/th", []() { if (recusaRemoto()) return; char m[160]; calibrarTU(servidor.arg("t").toFloat(), servidor.arg("u").toFloat(), m, sizeof(m)); servidor.send(200, "text/plain; charset=utf-8", m); });
+  servidor.on("/cal/zerar", []() { if (recusaRemoto()) return; zerarCalibracao(); servidor.send(200, "text/plain; charset=utf-8", "Calibração do DHT11 zerada."); });
   servidor.on("/redes", webRedes);
   servidor.on("/wifi", webWifi);
   servidor.on("/wifi/esquecer", webEsquecer);
   servidor.on("/tg", webTg);
   servidor.on("/cal/gas", []() {
+    if (recusaRemoto()) return;
     if (estado != EST_OPER) { servidor.send(200, "text/plain; charset=utf-8", "Aguarde o fim do aquecimento."); return; }
     iniciarRecalGas(); servidor.send(200, "text/plain; charset=utf-8", "Recalibrando o MQ-2 por 60 s: mantenha o ar limpo."); });
   servidor.begin();
