@@ -2,7 +2,9 @@
 
 Protótipo de monitoramento ambiental e controle automático de ventilação para instalações de bovinos leiteiros, construído com ESP32.
 
-O sistema mede temperatura, umidade e resposta a gases combustíveis, calcula o Índice de Temperatura e Umidade (ITU) e ajusta a rotação do ventilador em quatro níveis, no lugar de deixá-lo ligado o tempo todo. Tudo foi montado em escala reduzida, numa maquete, como prova de conceito.
+O sistema mede temperatura, umidade e resposta a gases combustíveis, calcula o Índice de Temperatura e Umidade (ITU) e ajusta a rotação do ventilador em quatro níveis, no lugar de deixá-lo ligado o tempo todo.
+
+O protótipo é montado e ensaiado em bancada. A maquete do galpão que acompanha o trabalho é expositiva: serve para explicar a aplicação pretendida na apresentação, e não abriga os sensores nem o ventilador.
 
 Trabalho A3 da unidade curricular Sistemas de Comunicação e Redes, Engenharia de Software, Centro Universitário de Belo Horizonte (UniBH), 2026. Professor: Dr. Rodrigo Romero.
 
@@ -106,7 +108,7 @@ O DHT11 tem exatidão de ±2 °C e ±5 % de umidade relativa, o que propaga para
 
 O consumo de energia é estimado a partir da razão cíclica e da potência nominal do ventilador, não medido. Medir exigiria um sensor de corrente como o INA219.
 
-Os resultados vêm de uma maquete, não de um galpão. Economia de energia medida aqui não se extrapola para uma instalação comercial.
+Os ensaios são de bancada, não de galpão. O protótipo demonstra que o controlador mede, decide e aciona conforme a norma de ITU adotada, e não que a mesma lógica produza o mesmo efeito numa instalação comercial, onde o escoamento de ar, o volume e a carga térmica animal são de outra ordem. Nenhum resultado obtido aqui é extrapolado.
 
 O cliente HTTPS usa `setInsecure()`, sem validação de certificado. Para um protótipo em rede local é aceitável, e está registrado como limitação no artigo.
 
