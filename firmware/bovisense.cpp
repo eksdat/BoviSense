@@ -3,11 +3,7 @@
  * ESP32 DevKit 30 pinos | DHT11 | MQ-2 | buzzer | TIP122. Sem display.
  *
  * Núcleo 1: amostragem, decisão, acionamento e modo seguro.
-<<<<<<< HEAD
  * Núcleo 0: Wi-Fi, painel web e Telegram, por fila.
-=======
- * Núcleo 0: Wi-Fi, painel web, Telegram e ligação de voz, por fila.
->>>>>>> e7a837c01fd09e0d8a28afe6bacf92cf0e35c1f8
  *
  * Arduino-ESP32 2.0.x ou 3.x.
  * Bibliotecas: DHT sensor library, Adafruit Unified Sensor, ArduinoJson 7.
@@ -43,11 +39,7 @@
 // Tem que corresponder à fiação: trocar um sem o outro falseia o índice de
 // gás, ou leva 5 V ao D34.
 //   1 = VCC no 3V3, AO direto no D34. Montagem atual. O aquecedor fica com
-<<<<<<< HEAD
 //       44 % da potência de catálogo, declarado como limitação no artigo.
-=======
-//       43 % da potência de catálogo, declarado como limitação no artigo.
->>>>>>> e7a837c01fd09e0d8a28afe6bacf92cf0e35c1f8
 //   0 = VCC no VIN (5 V), AO por divisor de dois resistores de 10 kΩ.
 #define MQ2_EM_3V3    1
 
@@ -155,13 +147,8 @@ QueueHandle_t filaSaida, filaCmd;
 // Escritas pelo painel (núcleo 1), lidas pela tarefa de rede (núcleo 0).
 // String realoca ao ser reatribuída, então o núcleo 0 só lê as cópias r0*,
 // renovadas sob mutex no início de cada volta.
-<<<<<<< HEAD
 static String wifiSsid, wifiSenha, tgToken, tgChat;
 static String r0Ssid, r0Senha, r0Token, r0Chat;
-=======
-static String wifiSsid, wifiSenha, tgToken, tgChat, cbUser;
-static String r0Ssid, r0Senha, r0Token, r0Chat, r0User;
->>>>>>> e7a837c01fd09e0d8a28afe6bacf92cf0e35c1f8
 static volatile bool pedidoReconectar = false;
 static bool wifiOk = false;
 static volatile uint8_t wifiMotivo = 0;   // último motivo de desconexão informado pelo driver
@@ -352,7 +339,6 @@ static void salvarRede(const String &ssid, const String &senha) {
   xSemaphoreTake(mtxCred, portMAX_DELAY);
   wifiSsid = ssid; wifiSenha = senha;
   xSemaphoreGive(mtxCred);
-<<<<<<< HEAD
   prefs.begin("bovisense", false); gravarCred("wifi_s", ssid); gravarCred("wifi_p", senha); prefs.end();
   pedidoReconectar = true;
 }
@@ -366,16 +352,6 @@ static void salvarTelegram(const String &tok, const String &chat) {
   tgChat  = chat.length() ? chat : String(TG_CHAT_ID);
   xSemaphoreGive(mtxCred);
   prefs.begin("bovisense", false); gravarCred("tg_t", tok); gravarCred("tg_c", chat); prefs.end();
-=======
-  prefs.begin("bovisense", false); prefs.putString("wifi_s", ssid); prefs.putString("wifi_p", senha); prefs.end();
-  pedidoReconectar = true;
-}
-static void salvarTelegram(const String &tok, const String &chat, const String &user) {
-  xSemaphoreTake(mtxCred, portMAX_DELAY);
-  tgToken = tok; tgChat = chat; cbUser = user;
-  xSemaphoreGive(mtxCred);
-  prefs.begin("bovisense", false); prefs.putString("tg_t", tok); prefs.putString("tg_c", chat); prefs.putString("cb_u", user); prefs.end();
->>>>>>> e7a837c01fd09e0d8a28afe6bacf92cf0e35c1f8
 }
 static void salvarCalibracao() {
   prefs.begin("bovisense", false);
@@ -451,7 +427,6 @@ static bool ehIdDoBot(const String &chat, const String &tok) {
 }
 static bool chatIdValido() { return idChatValido(tgChat.c_str()) && !ehIdDoBot(tgChat, tgToken); }
 static bool tgTokenOk() { return tgToken.length() > 20; }
-<<<<<<< HEAD
 // O Telegram respondeu 400 ou 403 ao enviar para o chat configurado: o número
 // tem formato certo mas não serve. Só o núcleo 0 escreve.
 static volatile bool tgChatRecusado = false;
@@ -468,15 +443,6 @@ static void sincronizarCredenciais() {
   if (xSemaphoreTake(mtxCred, pdMS_TO_TICKS(20)) != pdTRUE) return;
   r0Ssid = wifiSsid; r0Senha = wifiSenha;
   r0Token = tgToken; r0Chat = tgChat;
-=======
-// --- lado do núcleo 0: só estas funções e cópias podem ser usadas lá ---
-static bool r0TokenOk()   { return r0Token.length() > 20; }
-static bool r0LigacaoOk() { return r0User.length() > 1; }
-static void sincronizarCredenciais() {
-  if (xSemaphoreTake(mtxCred, pdMS_TO_TICKS(20)) != pdTRUE) return;
-  r0Ssid = wifiSsid; r0Senha = wifiSenha;
-  r0Token = tgToken; r0Chat = tgChat; r0User = cbUser;
->>>>>>> e7a837c01fd09e0d8a28afe6bacf92cf0e35c1f8
   xSemaphoreGive(mtxCred);
 }
 static bool tgAtivo() { return tgTokenOk() && chatIdValido(); }
@@ -489,7 +455,6 @@ static volatile bool tgReapresentar = false;
 // Conferir o formato do token e do chat_id não diz nada sobre a API aceitá-los,
 // então o painel exige resposta 200.
 static bool tgOk() { return tgAtivo() && tgUltimoCod == 200; }
-<<<<<<< HEAD
 // Grava só o chat_id. O token continua vindo de onde vinha (segredos.h ou
 // painel): gravá-lo aqui o congelaria na NVS por cima do segredos.h.
 static void salvarChat(const String &chat) {
@@ -500,13 +465,10 @@ static void salvarChat(const String &chat) {
   tgUltimoCod = 0; tgReapresentar = true;
   Serial.printf("# TELEGRAM: chat_id %s gravado na memoria do ESP32 (vale mesmo apos regravar o firmware)\n", chat.c_str());
 }
-=======
->>>>>>> e7a837c01fd09e0d8a28afe6bacf92cf0e35c1f8
 // Buffer estático: só webApi() chama isto, sempre no núcleo 1.
 static const char *tgMotivo() {
   static char m[80];
   if (!tgTokenOk())    return "token do bot não preenchido";
-<<<<<<< HEAD
   if (ehIdDoBot(tgChat, tgToken))
     return "o chat_id preenchido é o número do próprio bot (o início do token). Mande qualquer mensagem ao bot pelo seu Telegram e ele se vincula ao seu chat";
   if (!chatIdValido()) return "nenhum chat vinculado. Mande qualquer mensagem ao bot pelo seu Telegram e ele se vincula ao seu chat";
@@ -515,13 +477,6 @@ static const char *tgMotivo() {
     case 200: return "";
     case 400: return "erro 400: chat_id errado ou conversa nunca iniciada. Mande qualquer mensagem ao bot e ele se vincula ao seu chat";
     case 403: return "erro 403: o bot foi bloqueado nesse chat. Desbloqueie e mande qualquer mensagem ao bot";
-=======
-  if (!chatIdValido()) return "chat_id vazio ou com caracteres que não são dígitos";
-  switch (tgUltimoCod) {
-    case 0:   return "aguardando o primeiro envio";
-    case 200: return "";
-    case 400: return "erro 400 (chat_id errado, ou falta abrir a conversa com /start no bot)";
->>>>>>> e7a837c01fd09e0d8a28afe6bacf92cf0e35c1f8
     case 401:
     case 404: return "erro 401/404 (token inválido ou revogado no BotFather)";
     default:
@@ -530,20 +485,11 @@ static const char *tgMotivo() {
       return m;
   }
 }
-<<<<<<< HEAD
-=======
-static bool ligacaoAtiva() { return cbUser.length() > 1; }
->>>>>>> e7a837c01fd09e0d8a28afe6bacf92cf0e35c1f8
 static void enfileirar(uint8_t tipo, const char *txt) {
   if (tipo == SAI_MSG && !tgAtivo()) return;
   MsgSaida m; m.tipo = tipo; strlcpy(m.texto, txt, sizeof(m.texto));
-<<<<<<< HEAD
   // Um envio lento (DNS, TLS) segura a tarefa de rede por alguns segundos; sem
   // espera, os alertas gerados nesse intervalo sumiriam sem rastro.
-=======
-  // Uma ligação bloqueia a tarefa de rede por dezenas de segundos; sem espera,
-  // os alertas gerados nesse intervalo sumiriam sem rastro.
->>>>>>> e7a837c01fd09e0d8a28afe6bacf92cf0e35c1f8
   if (xQueueSend(filaSaida, &m, pdMS_TO_TICKS(250)) != pdTRUE) {
     descartadas++;
     Serial.printf("# REDE: fila cheia, alerta DESCARTADO (%lu no total): %.60s\n",
@@ -723,10 +669,7 @@ static void amostrar() {
         stItu.limiar = limiaresAtivos();
         zerarEstagiador(stItu); zerarEstagiador(stGas); zerarEnsaio(); zerarHora();
         iniciarEstado(EST_OPER);
-<<<<<<< HEAD
         guardarRetomada();
-=======
->>>>>>> e7a837c01fd09e0d8a28afe6bacf92cf0e35c1f8
         Serial.printf("# BASE: ITU_base=%.1f\n", ituBase);
         char msg[220];
         snprintf(msg, sizeof(msg), "BoviSense pronto. Controle %s ativo. ITU agora %.1f (%s).", NOME_MODO[modo], itu,
@@ -1001,17 +944,10 @@ button:disabled{opacity:.5;cursor:default}
 <p class="k">Rede e Telegram</p>
 <p id="wst" style="margin:0 0 4px;font-weight:600">—</p>
 <p id="tgst" class="hint" style="margin:0 0 10px"></p>
-<<<<<<< HEAD
 <button onclick="redes(this)">Procurar redes</button><br>
 <label>Rede<select id="ssid"><option value="">procure as redes primeiro</option></select></label>
 <label>Senha<input id="pw2" type="password" autocomplete="off"></label><button type="button" class="olho" onclick="olho(this)">mostrar</button><br>
 <button class="on" onclick="conectar(this)">Conectar</button><button onclick="perigo(this,'/wifi/esquecer','esquecer a rede?')">Esquecer</button>
-=======
-<button onclick="redes()">Procurar redes</button><br>
-<label>Rede<select id="ssid"></select></label>
-<label>Senha<input id="pw2" type="password"></label><br>
-<button class="on" onclick="conectar()">Conectar</button><button onclick="acao('/wifi/esquecer')">Esquecer</button>
->>>>>>> e7a837c01fd09e0d8a28afe6bacf92cf0e35c1f8
 <p class="hint">Redes de 5 GHz não aparecem: o ESP32 não as enxerga.</p>
 <label>Token do bot<input id="tk" size="24" style="width:230px" autocomplete="off"></label>
 <label>chat_id<input id="ci" inputmode="numeric" pattern="-?[0-9]*" autocomplete="off"></label><br>
@@ -1110,24 +1046,16 @@ return'Pelo índice, para descer um nível o ITU precisa ficar abaixo de '+(LIM[
 function atual(){fetch('/api').then(function(r){return r.json()}).then(function(d){
 ultOk=Date.now();frescor();
 $('itu').textContent=f(d.ITU);$('t').textContent=f(d.T);$('u').textContent=f(d.UR,0);$('g').textContent=f(d.IG,2);
-<<<<<<< HEAD
 $('cat').textContent=d.cat;$('est').textContent=d.estado;$('porque').textContent=explica(d);
 $('rt').textContent=isNaN(d.T)?'':'(o sensor lê '+f(d.T)+' °C agora)';
 $('ru').textContent=isNaN(d.UR)?'':'(o sensor lê '+f(d.UR,0)+' % agora)';
-=======
-$('cat').textContent=d.cat;$('est').textContent=d.estado;
->>>>>>> e7a837c01fd09e0d8a28afe6bacf92cf0e35c1f8
 $('gm').textContent=d.gmot?'Índice de gás indisponível — '+d.gmot+'.':'';
 $('stw').style.borderLeftColor=d.catn<4?CV[d.catn]:'var(--mut)';
 $('vl').textContent=d.rec?'Ventilação recomendada':'Ventilação';
 for(var i=0;i<4;i++)$('n'+i).className=(i==d.nivel?'on':'');
 $('ph').textContent=d.hora;$('pw').textContent=d.wifi?'rede ✓':'rede ✗';
 $('pt').textContent=d.tg?'Telegram ✓':'Telegram ✗';$('wst').textContent=d.wst;
-<<<<<<< HEAD
 $('tgst').textContent=(d.tg?'Telegram entregando normalmente.':'Telegram sem entregar: '+(d.tgmot||'não configurado')+'.')+(d.tgbot?' Bot: @'+d.tgbot+'.':'');
-=======
-$('tgst').textContent=d.tg?'Telegram entregando normalmente.':'Telegram sem entregar: '+(d.tgmot||'não configurado')+'.';
->>>>>>> e7a837c01fd09e0d8a28afe6bacf92cf0e35c1f8
 if(d.modo!=modo){modo=d.modo;botoes()}
 var a=$('aviso');a.style.display=d.alerta?'block':'none';a.textContent=d.alerta;
 var e=d.ens;$('tab').innerHTML=[['Duração',f(e.min,0)+' min'],
@@ -1161,11 +1089,7 @@ setInterval(atual,2500);setInterval(graf,10000);atual();graf();
 
 static const char *NOME_CAT_WEB[4] = {"Conforto térmico", "Estresse brando", "Atenção: próximo do crítico", "Estresse moderado"};
 static void webApi() {
-<<<<<<< HEAD
   static char b[2000]; char estTxt[80], hr[8] = "--:--", alerta[120] = "";
-=======
-  static char b[1700]; char estTxt[80], hr[8] = "--:--", alerta[120] = "";
->>>>>>> e7a837c01fd09e0d8a28afe6bacf92cf0e35c1f8
   uint32_t dec = (millis() - tInicioEstado) / 1000UL;
   if (estado == EST_AQUEC) snprintf(estTxt, sizeof(estTxt), "Aquecendo o MQ-2: faltam %lu s", (unsigned long)(T_AQUEC_S > dec ? T_AQUEC_S - dec : 0));
   else if (estado == EST_BASE) snprintf(estTxt, sizeof(estTxt), "Medindo o ar de referência: faltam %lu s", (unsigned long)(T_BASE_S > dec ? T_BASE_S - dec : 0));
@@ -1186,20 +1110,12 @@ static void webApi() {
            "\"rec\":%s,\"cat\":\"%s\",\"catn\":%u,\"alerta\":\"%s\",\"wifi\":%s,\"tg\":%s,\"hora\":\"%s\","
            "\"ens\":{\"min\":%.1f,\"acima\":%.1f,\"carga\":%.1f,\"eq\":%.1f,\"E\":%.3f,\"part\":%lu,\"troc\":%lu},"
            "\"s\":[%.1f,%.1f,%.1f],\"cal\":{\"t\":%.1f,\"u\":%.1f,\"g1\":%.2f,\"g2\":%.2f},\"wst\":\"%s\",\"gmot\":\"%s\","
-<<<<<<< HEAD
            "\"tgmot\":\"%s\",\"tgbot\":\"%s\"}",
-=======
-           "\"tgmot\":\"%s\"}",
->>>>>>> e7a837c01fd09e0d8a28afe6bacf92cf0e35c1f8
            estTxt, modo, Tf, Uf, itu, ig, (unsigned long)mqmV, nivel, dutyAlvo, SEM_ATUADOR ? "true" : "false",
            c < 4 ? NOME_CAT_WEB[c] : "Sem leitura", c < 4 ? c : 9, alerta, wifiOk ? "true" : "false", tgOk() ? "true" : "false", hr,
            ensaio.t_total_s / 60.0, ensaio.t_itu_acima_s / 60.0, ensaio.carga_itu_min, ensaio.t_eq_s / 60.0, ensaio.energia_wh,
            (unsigned long)ensaio.n_partidas, (unsigned long)ensaio.n_trocas,
-<<<<<<< HEAD
            ensS[0].t_eq_s / 60.0, ensS[1].t_eq_s / 60.0, ensS[2].t_eq_s / 60.0, calOffT, calOffU, IG_LIMIAR[0], IG_LIMIAR[1], rede, isnan(ig) ? gasMotivo : "", tgMotivo(), botUser);
-=======
-           ensS[0].t_eq_s / 60.0, ensS[1].t_eq_s / 60.0, ensS[2].t_eq_s / 60.0, calOffT, calOffU, IG_LIMIAR[0], IG_LIMIAR[1], rede, isnan(ig) ? gasMotivo : "", tgMotivo());
->>>>>>> e7a837c01fd09e0d8a28afe6bacf92cf0e35c1f8
   String s(b); s.replace("nan", "null");
   servidor.send(200, "application/json; charset=utf-8", s);
 }
@@ -1285,11 +1201,7 @@ static void diagnosticarWiFi() {
 // ---- controle de acesso -----------------------------------------------------
 // Leitura (/, /api, /hist, /csv) é livre. Tudo que muda estado exige cliente
 // em 192.168.4.x, a rede do próprio aparelho: na rede da fazenda qualquer um
-<<<<<<< HEAD
 // dispararia uma emergência simulada ou trocaria a estratégia num ensaio.
-=======
-// dispararia uma ligação de emergência ou trocaria a estratégia num ensaio.
->>>>>>> e7a837c01fd09e0d8a28afe6bacf92cf0e35c1f8
 static bool clienteLocal() { IPAddress ip = servidor.client().remoteIP(); return ip[0] == 192 && ip[1] == 168 && ip[2] == 4; }
 static bool recusaRemoto() {
   if (clienteLocal()) return false;
@@ -1334,11 +1246,7 @@ static void webTg() {
     if (!isdigit((unsigned char)chat[i]) && !(chat[i] == '-' && i == 0)) {
       servidor.send(200, "text/plain; charset=utf-8", "O chat_id é só números (não é o telefone). Deixe vazio e mande qualquer mensagem ao bot: ele se vincula sozinho."); return;
     }
-<<<<<<< HEAD
   salvarTelegram(tok, chat);
-=======
-  salvarTelegram(tok, chat, user);
->>>>>>> e7a837c01fd09e0d8a28afe6bacf92cf0e35c1f8
   tgUltimoCod = 0;         // não manter no painel o erro da credencial antiga
   tgReapresentar = true;
   servidor.send(200, "text/plain; charset=utf-8", "Telegram salvo na memória do ESP32.");
@@ -1350,7 +1258,6 @@ static void webTg() {
 // dentro da leitura de mensagens abria uma segunda sessão com a primeira ainda
 // viva: faltava memória e o envio voltava -1. setReuse(false) fecha cada pedido.
 static int tgPost(const char *metodo, const String &corpo, String *resp = nullptr) {
-<<<<<<< HEAD
   String url = String("https://api.telegram.org/bot") + r0Token + "/" + metodo;
   int cod = -1;
   for (int tent = 0; tent < 2; tent++) {
@@ -1370,21 +1277,6 @@ static int tgPost(const char *metodo, const String &corpo, String *resp = nullpt
     // -1 é falha ao conectar: nada chegou ao Telegram, então repetir não duplica mensagem.
     if (cod != HTTPC_ERROR_CONNECTION_REFUSED) break;
     vTaskDelay(pdMS_TO_TICKS(700));
-=======
-  WiFiClientSecure cli; cli.setInsecure();   // limitação discutida no artigo
-  HTTPClient http; http.setTimeout(10000);
-  String url = String("https://api.telegram.org/bot") + r0Token + "/" + metodo;
-  if (!http.begin(cli, url)) return -1;
-  http.addHeader("Content-Type", "application/json");
-  int cod = http.POST(corpo);
-  tgUltimoCod = cod;                         // alimenta o indicador do painel
-  if (resp && cod > 0) *resp = http.getString();
-  if (cod != 200) {
-    String r = cod > 0 ? (resp ? *resp : http.getString()) : String("sem resposta (DNS/TLS/internet)");
-    Serial.printf("# TELEGRAM %s: erro HTTP %d -> %s\n", metodo, cod, r.substring(0, 160).c_str());
-    if (cod == 400) Serial.println(F("# TELEGRAM: 'chat not found' = TG_CHAT_ID errado ou falta enviar /start ao bot"));
-    if (cod == 401 || cod == 404) Serial.println(F("# TELEGRAM: token invalido ou revogado (TG_TOKEN)"));
->>>>>>> e7a837c01fd09e0d8a28afe6bacf92cf0e35c1f8
   }
   return cod;
 }
@@ -1416,10 +1308,6 @@ static void tgQuemSou() {
   snprintf(botUser, sizeof(botUser), "%s", u);
   Serial.printf("# TELEGRAM: token aceito. O bot e @%s: no celular, abra t.me/%s e toque em INICIAR\n", u, u);
 }
-<<<<<<< HEAD
-=======
-static bool tgEnviar(const char *texto) { return tgEnviarPara(r0Chat.c_str(), texto); }
->>>>>>> e7a837c01fd09e0d8a28afe6bacf92cf0e35c1f8
 static void tgMenu() {
   tgPost("setMyCommands", F("{\"commands\":["
     "{\"command\":\"status\",\"description\":\"Leituras atuais\"},"
@@ -1431,20 +1319,6 @@ static void tgMenu() {
     "{\"command\":\"calibrar_gas\",\"description\":\"Recalibrar o MQ-2 em ar limpo\"},"
     "{\"command\":\"ajuda\",\"description\":\"Lista de comandos\"}]}"));
 }
-<<<<<<< HEAD
-=======
-static bool fazerLigacao(const char *texto) {
-  WiFiClientSecure cli; cli.setInsecure();
-  HTTPClient http; http.setTimeout(25000);
-  String url = String("https://api.callmebot.com/start.php?user=") + urlCodificar(r0User.c_str()) +
-               "&text=" + urlCodificar(texto) + "&lang=" + CALLMEBOT_LANG + "&rpt=2";
-  if (!http.begin(cli, url)) return false;
-  int cod = http.GET();
-  if (cod != 200) Serial.printf("# LIGACAO: erro HTTP %d (autorizou o @CallMeBot_txtbot? tem @usuario no Telegram?)\n", cod);
-  http.end();
-  return cod == 200;
-}
->>>>>>> e7a837c01fd09e0d8a28afe6bacf92cf0e35c1f8
 static void enviarCmd(uint8_t tipo, int arg) { Comando c = {tipo, arg}; xQueueSend(filaCmd, &c, 0); }
 static void tgResponder(const char *cmd) {
   static char txt[900]; static Retrato r;
@@ -1468,12 +1342,6 @@ static void tgResponder(const char *cmd) {
   } else if (!strncmp(cmd, "/simular", 8)) { enviarCmd(CMD_SIMULAR, 0);
   } else if (!strncmp(cmd, "/parar", 6)) { enviarCmd(CMD_PARAR_SIM, 0);
   } else if (!strncmp(cmd, "/calibrar_gas", 13)) { enviarCmd(CMD_RECAL_GAS, 0); tgEnviar("Recalibrando o MQ-2 por 60 s. Mantenha o ar limpo.");
-<<<<<<< HEAD
-=======
-  } else if (!strncmp(cmd, "/ligar", 6)) {
-    if (r0LigacaoOk()) { tgEnviar("Fazendo ligacao de teste..."); fazerLigacao("Teste da ligacao de alerta do BoviSense."); }
-    else tgEnviar("Ligacao desativada: preencha o usuario do CallMeBot no painel ou no segredos.h.");
->>>>>>> e7a837c01fd09e0d8a28afe6bacf92cf0e35c1f8
   } else {
     tgEnviar("BoviSense - comandos:\n/status - leituras atuais\n/relatorio - metricas\n/simular - emergencia de teste (60 s)\n"
              "/parar - encerra a simulacao\n/modo N - estrategia (0 continua, 1 liga-desliga, 2 adaptativa, 3 demonstracao)\n"
@@ -1516,7 +1384,6 @@ static void tgConsultar(int64_t &offset) {
     long data = u["message"]["date"] | 0L;
     if (!chat) continue;
     char chatStr[24]; snprintf(chatStr, sizeof(chatStr), "%lld", (long long)chat);
-<<<<<<< HEAD
     char m[260];
     if (r0Chat != chatStr) {
       if (!r0ChatOk()) {
@@ -1535,10 +1402,6 @@ static void tgConsultar(int64_t &offset) {
       }
       // Já há um chat que funciona: a outro chat, só informa o número.
       snprintf(m, sizeof(m), "Este chat nao esta autorizado no BoviSense.\nSeu chat_id e: %s\nPara receber os alertas aqui, cole esse numero no painel (cartao Rede e Telegram).", chatStr);
-=======
-    if (r0Chat != chatStr) {   // ajuda na configuração: informa o chat_id a quem escreveu
-      char m[240]; snprintf(m, sizeof(m), "Este chat ainda nao esta autorizado no BoviSense.\nSeu chat_id e: %s\nCole esse numero no painel do BoviSense (cartao Rede e Telegram) ou em TG_CHAT_ID no segredos.h.", chatStr);
->>>>>>> e7a837c01fd09e0d8a28afe6bacf92cf0e35c1f8
       tgEnviarPara(chatStr, m);
       Serial.printf("# TELEGRAM: mensagem do chat %s (nao autorizado; o vinculado e %s)\n", chatStr, r0Chat.c_str());
       continue;
@@ -1569,26 +1432,18 @@ static void tgConsultar(int64_t &offset) {
 }
 static void tarefaRede(void *) {
   sincronizarCredenciais();
-<<<<<<< HEAD
   bool ntp = false, antes = false, saudou = false, menu = false; uint32_t ultPoll = 0, ultTent = 0, desdeCon = 0; int64_t offset = 0;
   uint32_t proxSaudacao = 0;
   if (r0Ssid.length()) { WiFi.begin(r0Ssid.c_str(), r0Senha.c_str()); ultTent = millis(); }
   else Serial.println(F("# Wi-Fi: sem rede escolhida -> so painel local. Escolha a rede no painel."));
   for (;;) {
     sincronizarCredenciais();
-=======
-  bool ntp = false, antes = false, saudou = false, menu = false; uint32_t ultPoll = 0, ultTent = 0; int64_t offset = 0;
-  if (r0Ssid.length()) { WiFi.begin(r0Ssid.c_str(), r0Senha.c_str()); ultTent = millis(); }
-  else Serial.println(F("# Wi-Fi: sem rede escolhida -> so painel local. Escolha a rede no painel."));
-  for (;;) {
->>>>>>> e7a837c01fd09e0d8a28afe6bacf92cf0e35c1f8
     bool con = r0Ssid.length() && WiFi.status() == WL_CONNECTED;
     wifiOk = con;
     if (con && !antes) {
       desdeCon = millis();
       snprintf(wifiDiag, sizeof(wifiDiag), "conectado");
       Serial.printf("# Wi-Fi: CONECTADO a '%s' | IP %s | sinal %d dBm\n", r0Ssid.c_str(), WiFi.localIP().toString().c_str(), WiFi.RSSI());
-<<<<<<< HEAD
       if (!ntp) {
         // Arduino-ESP32 3.3.12: na primeira consulta, NetworkManager::hostByName
         // chama dns_clear_cache() sem a trava do lwIP. Se o SNTP estiver
@@ -1601,17 +1456,6 @@ static void tarefaRede(void *) {
         IPAddress ipTg; int rDns = WiFi.hostByName("api.telegram.org", ipTg);
         Serial.printf("# DNS: api.telegram.org -> %s\n", rDns == 1 ? ipTg.toString().c_str() : "falhou (segue assim mesmo)");
         configTzTime("<-03>3", "a.st1.ntp.br", "pool.ntp.org"); ntp = true;
-=======
-      if (!ntp) { configTzTime("<-03>3", "a.st1.ntp.br", "pool.ntp.org"); ntp = true; }
-      if (tgReapresentar) { tgReapresentar = false; saudou = false; menu = false; }
-      if (r0TokenOk() && !menu) { tgMenu(); menu = true; }
-      if (tgAtivo() && !saudou) {
-        char m[260];
-        snprintf(m, sizeof(m), "BoviSense ligado e conectado a internet (IP %s).\nAquecendo o MQ-2: o controle comeca em cerca de 4 min.\n"
-                 "Painel local: rede 'BoviSense' -> http://192.168.4.1\nToque em / para ver os comandos.", WiFi.localIP().toString().c_str());
-        saudou = tgEnviar(m);
-        Serial.println(saudou ? F("# TELEGRAM: mensagem de inicializacao ENVIADA") : F("# TELEGRAM: mensagem de inicializacao FALHOU (veja o erro acima)"));
->>>>>>> e7a837c01fd09e0d8a28afe6bacf92cf0e35c1f8
       }
     }
     // Fora do bloco de transição: o token quase sempre é colado no painel com o
@@ -1644,19 +1488,14 @@ static void tarefaRede(void *) {
       snprintf(wifiDiag, sizeof(wifiDiag), "conectando...");
       if (r0Ssid.length()) { WiFi.begin(r0Ssid.c_str(), r0Senha.c_str()); ultTent = millis(); Serial.printf("# Wi-Fi: conectando a '%s' (escolhida no painel)\n", r0Ssid.c_str()); }
     }
-    sincronizarCredenciais();
     MsgSaida m;
     if (con && xQueueReceive(filaSaida, &m, 0) == pdTRUE) {
       bool ok = tgEnviar(m.texto);
       Serial.printf("# REDE: mensagem %s\n", ok ? "enviada" : "FALHOU");
     }
-<<<<<<< HEAD
     // Espera o relógio (NTP) para poder descartar comandos antigos; sem NTP, segue após 20 s.
     bool relogio = time(nullptr) > 1700000000 || millis() - desdeCon > 20000;
     if (con && r0TokenOk() && relogio && !tokenRecusado && millis() - ultPoll > TG_POLL_MS) { ultPoll = millis(); tgConsultar(offset); }
-=======
-    if (con && r0TokenOk() && millis() - ultPoll > TG_POLL_MS) { ultPoll = millis(); tgConsultar(offset); }
->>>>>>> e7a837c01fd09e0d8a28afe6bacf92cf0e35c1f8
     vTaskDelay(pdMS_TO_TICKS(50));
   }
 }
@@ -1760,11 +1599,7 @@ void setup() {
   servidor.on("/csv", webCsv);
   servidor.on("/modo", []() { if (recusaRemoto()) return; definirModo(servidor.arg("m").toInt()); servidor.send(200, "text/plain; charset=utf-8", "Estratégia alterada; novo ensaio iniciado."); });
   servidor.on("/novo", []() { if (recusaRemoto()) return; novoEnsaio(); servidor.send(200, "text/plain; charset=utf-8", "Novo ensaio iniciado."); });
-<<<<<<< HEAD
   servidor.on("/simular", []() { if (recusaRemoto()) return; iniciarSimulacao("painel web"); servidor.send(200, "text/plain; charset=utf-8", "Simulação iniciada: mensagem enviada ao Telegram."); });
-=======
-  servidor.on("/simular", []() { if (recusaRemoto()) return; iniciarSimulacao("painel web"); servidor.send(200, "text/plain; charset=utf-8", "Simulação iniciada: Telegram e ligação disparados."); });
->>>>>>> e7a837c01fd09e0d8a28afe6bacf92cf0e35c1f8
   servidor.on("/parar", []() { if (recusaRemoto()) return; pararSimulacao(); servidor.send(200, "text/plain; charset=utf-8", "Simulação encerrada."); });
   servidor.on("/cal/th", []() { if (recusaRemoto()) return; char m[160]; calibrarTU(servidor.arg("t").toFloat(), servidor.arg("u").toFloat(), m, sizeof(m)); servidor.send(200, "text/plain; charset=utf-8", m); });
   servidor.on("/cal/zerar", []() { if (recusaRemoto()) return; zerarCalibracao(); servidor.send(200, "text/plain; charset=utf-8", "Calibração do DHT11 zerada."); });

@@ -12,9 +12,5 @@
  * arquivos .ino, e esse pré-processamento se perde com a página HTML
  * embutida. Arquivos .cpp vão direto para o compilador.
  *
-<<<<<<< HEAD
  * Ligações, gravação e limitações: README.md, na pasta principal do projeto.
-=======
- * Ligações, gravação e limitações: README.md na raiz do repositório.
->>>>>>> e7a837c01fd09e0d8a28afe6bacf92cf0e35c1f8
  */
