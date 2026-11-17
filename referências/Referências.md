@@ -2,8 +2,6 @@
 
 VITALIANO, Serena; D’URSO, Provvidenza Rita; ARCIDIACONO, Claudia; CASCONE, Giovanni. Ammonia emissions and building-related mitigation strategies in dairy barns: a review. *Agriculture*, v. 14, n. 7, p. 1148, 2024. DOI: https://doi.org/10.3390/agriculture14071148.
 
-CRUZ, Túllio A. M.; NATE, Andressa S. ARIMA modeling for predicting hair coat temperature in dairy cows under heat stress. *Revista Brasileira de Engenharia Agrícola e Ambiental*, v. 30, n. 7, e294454, 2026. DOI: https://doi.org/10.1590/1807-1929/agriambi.v30n7e294454.
-
 BRETTAS, Patrícia K. M.; GUIMARÃES, Ednaldo C.; NASCIMENTO, Mara R. B. M. Dados de estação meteorológica oficial subestimam o estresse por calor em bovinos leiteiros criados em ambiente tropical. *Arquivo Brasileiro de Medicina Veterinária e Zootecnia*, v. 71, n. 3, p. 967-976, 2019. DOI: https://doi.org/10.1590/1678-4162-10432.
 
 AZEVEDO, Marcílio de; PIRES, Maria de Fátima Ávila; SATURNINO, Helton Mattana; LANA, Ângela Maria Quintão; SAMPAIO, Ivan Barbosa Machado; MONTEIRO, João Bosco Neves; MORATO, Leandro Esteves. Estimativa de níveis críticos superiores do índice de temperatura e umidade para vacas leiteiras 1/2, 3/4 e 7/8 Holandês-Zebu em lactação. *Revista Brasileira de Zootecnia*, v. 34, n. 6, p. 2000-2008, 2005. DOI: https://doi.org/10.1590/S1516-35982005000600025.
@@ -43,3 +41,17 @@ RODRIGUES, Ana R. F. et al. Implications of seasonal and daily variation on meth
 TABASE, Raphael Kubeba; NÆSS, Geir; LARRING, Yngve. Ammonia and methane emissions from small herd cattle buildings in a cold climate. *Science of the Total Environment*, v. 903, p. 166046, 2023. DOI: https://doi.org/10.1016/j.scitotenv.2023.166046.
 
 ÇINAR, Gültac et al. Effects of environmental and housing system factors on ammonia and greenhouse gas emissions from cattle barns: a meta-analysis of a global data collation. *Waste Management*, v. 172, p. 60-70, 2023. DOI: https://doi.org/10.1016/j.wasman.2023.09.007.
+
+## Documentação técnica
+
+AOSONG ELECTRONICS. *Digital-output relative humidity & temperature sensor/module DHT22 (DHT22 also named as AM2302)*. [S. l.]: Aosong Electronics, [20--]. Folha de dados. Disponível em: https://cdn.sparkfun.com/assets/f/7/d/9/c/DHT22.pdf. Acesso em: 19 set. 2026.
+
+ESPRESSIF SYSTEMS. *ESP32 series datasheet*. Shanghai: Espressif Systems, [20--]. Disponível em: https://www.espressif.com/sites/default/files/documentation/esp32_datasheet_en.pdf. Acesso em: 19 set. 2026.
+
+HANWEI ELECTRONICS. *Technical data MQ-2 gas sensor*. [S. l.]: Hanwei Electronics, [20--]. Folha de dados. Disponível em: https://store.comet.bg/download-file.php?id=19813. Acesso em: 19 set. 2026.
+
+ONSEMI. *TIP120, TIP121, TIP122 (NPN); TIP125, TIP126, TIP127 (PNP): plastic medium-power complementary silicon transistors*. [S. l.]: onsemi, [20--]. Folha de dados. Disponível em: https://www.onsemi.com/pdf/datasheet/tip120-d.pdf. Acesso em: 19 set. 2026.
+
+TELEGRAM. *Telegram Bot API*. [S. l.]: Telegram, 2026. Disponível em: https://core.telegram.org/bots/api. Acesso em: 19 set. 2026.
+
+WAVESHARE. *DHT11 temperature-humidity sensor*. Shenzhen: Waveshare, [20--]. Especificações técnicas. Disponível em: https://www.waveshare.com/temperature-humidity-sensor.htm. Acesso em: 19 set. 2026.
