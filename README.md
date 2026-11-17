@@ -177,7 +177,6 @@ O único reinício observado nos ensaios (16/11/2026) teve origem no núcleo Ard
 ## Estrutura do repositório
 
 ```
-artigo/                 artigo em ABNT (.docx e .pdf)
 dados/                  registros de bancada e scripts de análise
 docs/figuras/           figuras do artigo e scripts que as geram
 firmware/               programa do ESP32 (abrir esta pasta na IDE Arduino)
