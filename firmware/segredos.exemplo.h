@@ -1,6 +1,11 @@
 // ============================================================================
+<<<<<<< HEAD
 //  segredos.h — credenciais do protótipo
 //  NÃO publique este arquivo preenchido!
+=======
+//  segredos.h — credenciais do BoviSense
+//  NÃO publique este arquivo preenchido (nem no artigo, banner, grupo ou GitHub).
+>>>>>>> e7a837c01fd09e0d8a28afe6bacf92cf0e35c1f8
 // ============================================================================
 #pragma once
 
@@ -15,9 +20,25 @@
 
 // Telegram
 // TG_TOKEN: token do bot (@BotFather). Se ele vazar, revogue e gere outro.
+<<<<<<< HEAD
 // TG_CHAT_ID: pode ficar "". Com o token preenchido, mande qualquer mensagem
 //   ao bot pelo seu Telegram: ele se vincula ao seu chat e grava o número na
 //   memória do ESP32. Não use o número do início do token (é o id do bot) nem
 //   o telefone.
 #define TG_TOKEN         ""
 #define TG_CHAT_ID       ""
+=======
+// TG_CHAT_ID: NÚMERO do chat (ex.: "123456789"), NÃO o telefone.
+//   Grave o firmware com o token preenchido, envie /start ao seu bot e ele
+//   responde com o seu chat_id. Copie aqui e grave de novo.
+#define TG_TOKEN         ""
+#define TG_CHAT_ID       ""
+
+// Ligação de voz de alerta (serviço gratuito de terceiros CallMeBot)
+// 1) No Telegram, envie /start para @CallMeBot_txtbot (autoriza as ligações);
+// 2) Você precisa ter um @usuario no Telegram (Configurações > Nome de usuário);
+// 3) Preencha abaixo, ex.: "@seu_usuario". Deixe "" para desativar.
+#define CALLMEBOT_USER   ""
+// Voz da ligação. Se a voz em português falhar, use "en-US-Standard-B".
+#define CALLMEBOT_LANG   "pt-BR-Standard-A"
+>>>>>>> e7a837c01fd09e0d8a28afe6bacf92cf0e35c1f8
