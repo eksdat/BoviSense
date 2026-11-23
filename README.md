@@ -1,5 +1,7 @@
 # BoviSense
 
+[![DOI](https://zenodo.org/badge/DOI/10.5281/zenodo.24473722.svg)](https://doi.org/10.5281/zenodo.24473722)
+
 Sistema embarcado de monitoramento ambiental e controle adaptativo de ventilação para instalações de bovinos leiteiros.
 
 > Projeto acadêmico e experimental desenvolvido com ESP32, sensores ambientais e controle automático de ventilação, com foco em ambiência animal, eficiência energética e possibilidade de futura aplicação em instalações pecuárias reais.
@@ -204,7 +206,9 @@ O firmware compila sem avisos no núcleo Arduino-ESP32 3.3.12, ocupando 87 % da 
 
 O arquivo [CITATION.cff](CITATION.cff) traz os autores e o título; o GitHub o usa no botão "Cite this repository". Cada versão publicada (release) é arquivada no Zenodo, que atribui a ela um DOI permanente.
 
-DOI: a definir na primeira versão publicada.
+A versão v1.0 está arquivada no Zenodo: https://doi.org/10.5281/zenodo.24473722
+
+Aureliano, P. H. E., Papa, S. B., Kaizer, P. L. S., Edmundo, B. L. S., & Pace, R. A. (2026). *BoviSense: Firmware, dados de bancada e scripts do protótipo de ventilação adaptativa para instalações de bovinos leiteiros* (Versão v1.0) [Software]. Zenodo. https://doi.org/10.5281/zenodo.24473722
 
 ---
 

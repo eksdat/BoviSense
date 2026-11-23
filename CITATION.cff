@@ -28,6 +28,9 @@ authors:
     given-names: Rafael Araújo
     affiliation: Centro Universitário de Belo Horizonte (UniBH)
     orcid: "https://orcid.org/0009-0008-4218-7818"
+version: v1.0
+date-released: "2026-11-23"
+doi: 10.5281/zenodo.24473722
 repository-code: "https://github.com/eksdat/BoviSense"
 license: MIT
 keywords:
