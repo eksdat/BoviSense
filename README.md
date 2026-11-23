@@ -6,8 +6,6 @@ Sistema embarcado de monitoramento ambiental e controle adaptativo de ventilaç�
 
 Trabalho A3 da unidade curricular Sistemas de Comunicação e Redes, Engenharia de Software, Centro Universitário de Belo Horizonte (UniBH), 2026. Professor: Dr. Rodrigo Romero.
 
-Autores: Bernardo Luiz Silva Edmundo, Pedro Henrique Esperidião Aureliano, Pedro Lucas dos Santos Kaizer, Rafael Araujo Pace e Stanley Borges Papa.
-
 ---
 
 ## Sobre o projeto
