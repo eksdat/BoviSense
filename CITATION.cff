@@ -1,0 +1,40 @@
+cff-version: 1.2.0
+message: "Se usar este software ou estes dados, cite-os conforme abaixo."
+type: software
+title: "BoviSense: firmware, dados de bancada e scripts do protótipo de ventilação adaptativa para instalações de bovinos leiteiros"
+abstract: >-
+  Firmware para ESP32, testes da lógica de controle, registros de bancada e
+  scripts de análise do protótipo BoviSense, que ajusta a ventilação de
+  instalações de bovinos leiteiros em quatro níveis a partir do índice de
+  temperatura e umidade (ITU) e de um índice relativo de gases.
+authors:
+  - family-names: Aureliano
+    given-names: Pedro Henrique Esperidião
+    affiliation: Centro Universitário de Belo Horizonte (UniBH)
+    orcid: "https://orcid.org/0009-0004-9931-409X"
+  - family-names: Papa
+    given-names: Stanley Borges
+    affiliation: Centro Universitário de Belo Horizonte (UniBH)
+    orcid: "https://orcid.org/0009-0000-9476-1676"
+  - family-names: Kaizer
+    given-names: Pedro Lucas dos Santos
+    affiliation: Centro Universitário de Belo Horizonte (UniBH)
+    orcid: "https://orcid.org/0009-0007-8985-1029"
+  - family-names: Edmundo
+    given-names: Bernardo Luiz Silva
+    affiliation: Centro Universitário de Belo Horizonte (UniBH)
+    orcid: "https://orcid.org/0009-0009-3544-2267"
+  - family-names: Pace
+    given-names: Rafael Araújo
+    affiliation: Centro Universitário de Belo Horizonte (UniBH)
+    orcid: "https://orcid.org/0009-0008-4218-7818"
+repository-code: "https://github.com/eksdat/BoviSense"
+license: MIT
+keywords:
+  - ventilação adaptativa
+  - índice de temperatura e umidade
+  - bovinos leiteiros
+  - ambiência animal
+  - ESP32
+  - Internet das Coisas
+  - controle com histerese

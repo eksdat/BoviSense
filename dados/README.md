@@ -10,10 +10,10 @@ Registros seriais dos ensaios do protótipo e scripts que geram, a partir deles,
 
 | Arquivo | Conteúdo |
 |---|---|
-| `registro_bancada.txt` | sessão inicial de bancada, com as quatro estratégias (seção 4.2 do artigo) |
-| `registro_2026-11-16_estrategias.txt` | uma sessão por estratégia, em ar ambiente (seção 4.3) |
-| `registro_2026-11-16_perturbacao.txt` | primeiro ensaio com perturbação aplicada ao DHT11 (seção 4.4) |
-| `registro_2026-11-17_perturbacao.txt` | segundo ensaio com perturbação aplicada ao DHT11 (seção 4.4) |
+| `registro_bancada.txt` | sessão inicial de bancada, com as quatro estratégias |
+| `registro_2026-11-16_estrategias.txt` | uma sessão por estratégia, em ar ambiente |
+| `registro_2026-11-16_perturbacao.txt` | primeiro ensaio com perturbação aplicada ao DHT11 |
+| `registro_2026-11-17_perturbacao.txt` | segundo ensaio com perturbação aplicada ao DHT11 |
 | `registro_2026-11-16_telegram.txt` | depuração da integração com o Telegram |
 | `registro_2026-11-16_ligacao.txt` | teste da ligação de voz pelo CallMeBot, recurso removido do firmware por não completar as ligações |
 
@@ -55,7 +55,7 @@ python3 analise_perturbacao.py registro_2026-11-17_perturbacao.txt
 ```
 
 - `analise_bancada.py`: amostras por fase e por estratégia e verificações de conformidade da sessão inicial;
-- `analise_estrategias.py`: resumo por estratégia (Tabela 4 do artigo) e conformidade do nível com a regra da estratégia ativa;
-- `analise_perturbacao.py`: trocas de nível, descidas adiadas pela histerese e reimplementação independente da regra de estágios, comparada amostra a amostra com o estágio gravado pelo firmware (Tabela 5 do artigo).
+- `analise_estrategias.py`: resumo por estratégia (tabela do ensaio por estratégia no artigo) e conformidade do nível com a regra da estratégia ativa;
+- `analise_perturbacao.py`: trocas de nível, descidas adiadas pela histerese e reimplementação independente da regra de estágios, comparada amostra a amostra com o estágio gravado pelo firmware (tabela dos ensaios com perturbação no artigo).
 
 Os scripts usam apenas a biblioteca padrão do Python 3.

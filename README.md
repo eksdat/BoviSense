@@ -6,8 +6,6 @@ Sistema embarcado de monitoramento ambiental e controle adaptativo de ventilaç�
 
 Trabalho A3 da unidade curricular Sistemas de Comunicação e Redes, Engenharia de Software, Centro Universitário de Belo Horizonte (UniBH), 2026. Professor: Dr. Rodrigo Romero.
 
-Autores: Bernardo Luiz Silva Edmundo, Pedro Henrique Esperidião Aureliano, Pedro Lucas dos Santos Kaizer, Rafael Araujo Pace e Stanley Borges Papa.
-
 ---
 
 ## Sobre o projeto
@@ -177,14 +175,13 @@ O único reinício observado nos ensaios (16/11/2026) teve origem no núcleo Ard
 ## Estrutura do repositório
 
 ```
-artigo/                 artigo em ABNT (.docx e .pdf)
 dados/                  registros de bancada e scripts de análise
 docs/figuras/           figuras do artigo e scripts que as geram
 firmware/               programa do ESP32 (abrir esta pasta na IDE Arduino)
   firmware.ino            instruções de uso
   bovisense.cpp           programa completo, 1649 linhas
   segredos.exemplo.h      modelo em branco, copiar para segredos.h
-modelos/                modelagem 3D das cases, do galpão e dos suportes (.3mf)
+modelos/                modelagem 3D feita pelos autores (.3mf); cases de terceiros só referenciadas
 referências/            levantamento bibliográfico em ABNT
 testes/                 testes da lógica de controle, executados no computador
 ```
@@ -196,13 +193,21 @@ O firmware compila sem avisos no núcleo Arduino-ESP32 3.3.12, ocupando 87 % da 
 ## Limitações
 
 - o MQ-2 não mede ppm: é um sensor resistivo de baixa seletividade, sem calibração com gás padrão, e o sistema informa apenas um índice relativo ao ar limpo medido na inicialização;
-- o DHT11 tem exatidão de ±2 °C e ±5 % de umidade relativa, o que propaga para o ITU uma incerteza da ordem de ±2 unidades; um DHT22 ou SHT31 reduziria essa incerteza;
+- o DHT11 tem exatidão de ±2 °C e ±5 % de umidade relativa, o que propaga para o ITU uma incerteza padrão combinada de cerca de 2,9 unidades (a 28 °C e 60 % de umidade relativa); um DHT22 ou SHT31 reduziria essa incerteza;
 - o consumo de energia não foi medido, o que exigiria um sensor de corrente como o INA219;
 - os ensaios são de bancada e em malha aberta: o ventilador não altera o ar em que os sensores estão, e nenhum resultado é extrapolado para galpões reais, onde o escoamento de ar, o volume e a carga térmica animal são de outra ordem;
 - o cliente HTTPS usa `setInsecure()`, sem validação de certificado, o que é aceitável para um protótipo em rede local, mas não para uma instalação real.
 
 ---
 
+## Como citar
+
+O arquivo [CITATION.cff](CITATION.cff) traz os autores e o título; o GitHub o usa no botão "Cite this repository". Cada versão publicada (release) é arquivada no Zenodo, que atribui a ela um DOI permanente.
+
+DOI: a definir na primeira versão publicada.
+
+---
+
 ## Licença
 
-MIT, conforme o arquivo [LICENSE](LICENSE). As referências bibliográficas pertencem a seus respectivos autores e editoras.
+MIT, conforme o arquivo [LICENSE](LICENSE). As referências bibliográficas pertencem a seus respectivos autores e editoras. As cases de terceiros usadas no protótipo não são redistribuídas aqui: os links estão em [modelos/Referências.md](modelos/Referências.md).

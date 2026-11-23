@@ -14,7 +14,7 @@ g++ -O2 -std=c++17 -o testes testes.cpp
 ./testes
 ```
 
-Para gravar a série da simulação usada na Figura 9 do artigo:
+Para gravar a série da simulação usada na figura de simulação do artigo:
 
 ```bash
 ./testes ../docs/figuras/simulacao.csv

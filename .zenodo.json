@@ -1,0 +1,52 @@
+{
+  "title": "BoviSense: firmware, dados de bancada e scripts do protótipo de ventilação adaptativa para instalações de bovinos leiteiros",
+  "upload_type": "software",
+  "description": "<p>Firmware para ESP32, testes da lógica de controle, registros de bancada e scripts de análise do protótipo BoviSense, que ajusta a ventilação de instalações de bovinos leiteiros em quatro níveis a partir do índice de temperatura e umidade (ITU) e de um índice relativo de gases (sensor MQ-2).</p><p>O repositório contém: o programa do ESP32 (<code>firmware/</code>); 14 verificações automatizadas executadas em computador sobre as funções copiadas do firmware (<code>testes/</code>); os registros seriais da sessão inicial de bancada, do ensaio por estratégia e dos dois ensaios com perturbação aplicada ao sensor, com os scripts que reproduzem os números do artigo (<code>dados/</code>); as figuras e os scripts que as geram, incluindo o esquema de ligações (<code>docs/figuras/</code>); e a modelagem 3D feita pelos autores (<code>modelos/</code>).</p><p>Os ensaios são de bancada e em malha aberta: avaliam a decisão do controlador e o esforço de acionamento, e não a economia de energia nem o conforto térmico dos animais.</p>",
+  "creators": [
+    {
+      "name": "Aureliano, Pedro Henrique Esperidião",
+      "affiliation": "Centro Universitário de Belo Horizonte (UniBH)",
+      "orcid": "0009-0004-9931-409X"
+    },
+    {
+      "name": "Papa, Stanley Borges",
+      "affiliation": "Centro Universitário de Belo Horizonte (UniBH)",
+      "orcid": "0009-0000-9476-1676"
+    },
+    {
+      "name": "Kaizer, Pedro Lucas dos Santos",
+      "affiliation": "Centro Universitário de Belo Horizonte (UniBH)",
+      "orcid": "0009-0007-8985-1029"
+    },
+    {
+      "name": "Edmundo, Bernardo Luiz Silva",
+      "affiliation": "Centro Universitário de Belo Horizonte (UniBH)",
+      "orcid": "0009-0009-3544-2267"
+    },
+    {
+      "name": "Pace, Rafael Araújo",
+      "affiliation": "Centro Universitário de Belo Horizonte (UniBH)",
+      "orcid": "0009-0008-4218-7818"
+    }
+  ],
+  "contributors": [
+    {
+      "name": "Romero, Rodrigo Cézar da Silveira",
+      "affiliation": "Centro Universitário de Belo Horizonte (UniBH)",
+      "orcid": "0000-0001-6472-0099",
+      "type": "Supervisor"
+    }
+  ],
+  "keywords": [
+    "ventilação adaptativa",
+    "índice de temperatura e umidade",
+    "bovinos leiteiros",
+    "ambiência animal",
+    "ESP32",
+    "Internet das Coisas",
+    "controle com histerese"
+  ],
+  "license": "mit",
+  "language": "por",
+  "access_right": "open"
+}

@@ -1,5 +1,7 @@
 ## Modelos e arquivos utilizados
 
+As três cases de terceiros abaixo foram baixadas do MakerWorld e não são redistribuídas neste repositório, porque a licença de cada uma é definida pelo próprio autor. Para imprimi-las, use os links.
+
 MAKERWORLD. *MQ-2 Sensor Case*. Disponível em: https://makerworld.com/pt/models/1082453-mq-2-sensor-case. Acesso em: 14 set. 2026.
 
 MAKERWORLD. *DHT-11 Sensor Modular Case*. Disponível em: https://makerworld.com/pt/models/1656946-dht-11-sensor-modular-case. Acesso em: 14 set. 2026.
